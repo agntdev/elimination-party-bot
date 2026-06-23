@@ -6,6 +6,8 @@ import type {
   EliminateRandomPlayerInput,
   EliminateRandomPlayerResult,
   GameRepository,
+  GetCurrentRoundInput,
+  GetCurrentRoundResult,
   GroupUserInput,
   JoinRoundInput,
   JoinRoundResult,
@@ -133,6 +135,19 @@ export class FullRoundFixtureRepository implements GameRepository {
       balance: player.balance,
       inCurrentRound: this.joinList.includes(key) && this.state !== "complete",
     };
+  }
+
+  async getCurrentRound(_input: GetCurrentRoundInput): Promise<GetCurrentRoundResult> {
+    if (this.state === "open" && this.joinList.length > 0) {
+      return {
+        round: {
+          state: this.state,
+          stake: this.stakeAmount,
+          joinList: [...this.joinList],
+        },
+      };
+    }
+    return { round: undefined };
   }
 
   async getLeaderboard(input: LeaderboardInput): Promise<LeaderboardResult> {
