@@ -23,7 +23,7 @@
           {
             "method": "editMessageText",
             "payload": {
-              "text": "Elimination Party\n\nParticipants: 0\nStake: 10 points"
+              "text": "Elimination Party\n\nParticipants: 0"
             }
           }
         ]
