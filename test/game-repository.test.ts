@@ -60,6 +60,58 @@ describe("PostgresGameRepository", () => {
     expect(db.calls[0]?.params).toEqual([-1001, 3, 2]);
   });
 
+  it("updates the group stake for the creator", async () => {
+    const db = new ScriptedDb([[{ creator_id: 42 }], [{ stake_amount: 25 }]]);
+    const repository = new PostgresGameRepository(db);
+
+    await expect(
+      repository.setStake({
+        groupId: -1001,
+        groupName: "Party chat",
+        userId: 42,
+        amount: 25,
+      }),
+    ).resolves.toEqual({
+      status: "updated",
+      stakeAmount: 25,
+    });
+
+    const update = db.calls.find((call) => call.sql.includes("SET stake_amount = $2"));
+    expect(update?.params).toEqual([-1001, 25]);
+  });
+
+  it("refuses stake updates from non-creators", async () => {
+    const db = new ScriptedDb([[{ creator_id: 77 }]]);
+    const repository = new PostgresGameRepository(db);
+
+    await expect(
+      repository.setStake({
+        groupId: -1001,
+        userId: 42,
+        amount: 25,
+      }),
+    ).resolves.toEqual({
+      status: "not_creator",
+    });
+
+    expect(db.calls.some((call) => call.sql.includes("SET stake_amount = $2"))).toBe(false);
+  });
+
+  it("rejects invalid stake amounts before querying storage", async () => {
+    const db = new ScriptedDb([]);
+    const repository = new PostgresGameRepository(db);
+
+    await expect(
+      repository.setStake({
+        groupId: -1001,
+        userId: 42,
+        amount: 0,
+      }),
+    ).rejects.toThrow("stake amount must be an integer greater than or equal to 1");
+
+    expect(db.calls).toEqual([]);
+  });
+
   it("returns player balance and current-round membership", async () => {
     const db = new ScriptedDb([[{ id: -1001 }], [{ balance: 500 }], [{ join_list: [42, 77] }]]);
     const repository = new PostgresGameRepository(db);
