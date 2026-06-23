@@ -19,12 +19,12 @@ export interface BalanceResult {
 
 export interface LeaveRoundInput {
   groupId: number;
-  userId: number;
+  username: string;
 }
 
 export interface GroupUserInput {
   groupId: number;
-  userId: number;
+  username: string;
 }
 
 export interface LeaderboardInput {
@@ -34,9 +34,9 @@ export interface LeaderboardInput {
 }
 
 export interface LeaderboardEntry {
-  userId: number;
+  username: string;
   displayName: string;
-  username?: string;
+  telegramUsername?: string;
   balance: number;
 }
 
@@ -51,7 +51,7 @@ export interface LeaderboardResult {
 export interface SetStakeInput {
   groupId: number;
   groupName?: string;
-  userId: number;
+  username: string;
   amount: number;
 }
 
@@ -72,7 +72,7 @@ export type JoinRoundResult =
       balance: number;
       stakeAmount: number;
       participantCount: number;
-      joinList: number[];
+      joinList: string[];
       joinWindowStarted?: boolean;
       joinWindowSeconds?: number;
       joinWindowStartedAt?: string;
@@ -115,14 +115,14 @@ export interface EliminateRandomPlayerInput {
 }
 
 export interface StakePayout {
-  userId: number;
+  username: string;
   amount: number;
 }
 
 export type EliminateRandomPlayerResult =
   | {
       status: "completed";
-      eliminatedUserId: number;
+      eliminatedUsername: string;
       participantCount: number;
       stakeAmount: number;
       payouts: StakePayout[];

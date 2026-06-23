@@ -2,7 +2,7 @@ export type RoundSessionState = {
   groupId: number;
   stake: number;
   state: "open" | "countdown" | "complete" | "cancelled";
-  joinList: number[];
+  joinList: string[];
   joinWindowStartedAt?: string;
   joinWindowExpiresAt?: string;
 };

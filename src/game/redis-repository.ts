@@ -26,8 +26,8 @@ export interface RedisGameClient {
 }
 
 interface RedisPlayer {
-  userId: number;
-  username?: string;
+  username: string;
+  telegramUsername?: string;
   displayName: string;
   balance: number;
   firstSeen: string;
@@ -38,18 +38,18 @@ interface RedisRound {
   id: string;
   stake: number;
   state: "open" | "countdown" | "complete" | "cancelled";
-  joinList: number[];
+  joinList: string[];
   joinWindowStartedAt?: string;
   joinWindowExpiresAt?: string;
   startedAt?: string;
-  eliminatedUserId?: number;
+  eliminatedUsername?: string;
   finishedAt?: string;
   createdAt: string;
 }
 
 interface RedisTransaction {
   id: string;
-  userId: number;
+  username: string;
   delta: number;
   reason: "stake_lost" | "share_won";
   groupId?: number;
@@ -60,7 +60,7 @@ interface RedisTransaction {
 interface RedisGroupState {
   id: number;
   name?: string;
-  creatorId: number;
+  creatorUsername: string;
   stakeAmount: number;
   joinWindowSeconds: number;
   gifPack: CountdownGifPack;
@@ -100,12 +100,12 @@ function parseGlobal(value: string | null): RedisGlobalState | undefined {
   };
 }
 
-function calculateStakePayouts(joinList: number[], eliminatedUserId: number, stake: number): StakePayout[] {
-  const survivors = joinList.filter((userId) => userId !== eliminatedUserId);
+function calculateStakePayouts(joinList: string[], eliminatedUsername: string, stake: number): StakePayout[] {
+  const survivors = joinList.filter((username) => username !== eliminatedUsername);
   const baseAmount = Math.floor(stake / survivors.length);
   const remainder = stake % survivors.length;
-  return survivors.map((userId, index) => ({
-    userId,
+  return survivors.map((username, index) => ({
+    username,
     amount: baseAmount + (index < remainder ? 1 : 0),
   }));
 }
