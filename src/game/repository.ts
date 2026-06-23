@@ -12,6 +12,11 @@ export interface JoinRoundInput {
   user: TelegramUserRef;
 }
 
+export interface LeaveRoundInput {
+  groupId: number;
+  userId: number;
+}
+
 export type JoinRoundResult =
   | {
       status: "joined" | "already_joined";
@@ -25,8 +30,18 @@ export type JoinRoundResult =
       stakeAmount: number;
     };
 
+export type LeaveRoundResult =
+  | {
+      status: "left";
+      participantCount: number;
+    }
+  | {
+      status: "not_in_round";
+    };
+
 export interface GameRepository {
   joinRound(input: JoinRoundInput): Promise<JoinRoundResult>;
+  leaveRound(input: LeaveRoundInput): Promise<LeaveRoundResult>;
 }
 
 function parseJoinList(value: unknown): number[] {
@@ -40,6 +55,50 @@ function parseJoinList(value: unknown): number[] {
 
 export class PostgresGameRepository implements GameRepository {
   constructor(private readonly db: Queryable) {}
+
+  async leaveRound(input: LeaveRoundInput): Promise<LeaveRoundResult> {
+    await this.db.query("BEGIN");
+    try {
+      const openRound = await this.db.query<{ id: string; join_list: unknown }>(
+        `SELECT id, join_list
+         FROM rounds
+         WHERE group_id = $1 AND state = 'open'
+         ORDER BY created_at DESC
+         LIMIT 1
+         FOR UPDATE`,
+        [input.groupId],
+      );
+      const round = openRound.rows[0];
+      if (!round) {
+        await this.db.query("COMMIT");
+        return { status: "not_in_round" };
+      }
+
+      const joinList = parseJoinList(round.join_list);
+      if (!joinList.includes(input.userId)) {
+        await this.db.query("COMMIT");
+        return { status: "not_in_round" };
+      }
+
+      const nextJoinList = joinList.filter((id) => id !== input.userId);
+      const updated = await this.db.query<{ join_list: unknown }>(
+        `UPDATE rounds
+         SET join_list = $2::jsonb
+         WHERE id = $1 AND state = 'open'
+         RETURNING join_list`,
+        [round.id, JSON.stringify(nextJoinList)],
+      );
+
+      await this.db.query("COMMIT");
+      return {
+        status: "left",
+        participantCount: parseJoinList(updated.rows[0]?.join_list).length,
+      };
+    } catch (err) {
+      await this.db.query("ROLLBACK");
+      throw err;
+    }
+  }
 
   async joinRound(input: JoinRoundInput): Promise<JoinRoundResult> {
     await this.db.query("BEGIN");
