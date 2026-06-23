@@ -9,7 +9,7 @@
           {
             "method": "editMessageText",
             "payload": {
-              "text": "Round storage is not configured. Set DATABASE_URL before starting rounds."
+              "text": "Round storage is not configured. Set REDIS_URL before starting rounds."
             }
           }
         ]

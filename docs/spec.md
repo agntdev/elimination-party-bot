@@ -49,18 +49,16 @@ Edge cases
 
 Persistence
 
-Primary store: PostgreSQL (relational schema for Groups, Players, Rounds, Transactions). Suggested indexes: group_id + user_id on Players; group_id + state on Rounds; user_id on Transactions.
+Primary store: Redis via `REDIS_URL`. Redis stores one JSON game-state document per Telegram group, including group settings, players, balances, rounds, and audit transactions. Group-level Redis locks prevent overlapping updates in the same group.
 
-Short example schema (implementation detail):
-- groups(id bigint PK, creator_id bigint, stake int, join_window_seconds int, gif_pack jsonb, created_at timestamptz)
-- players(group_id bigint, user_id bigint, username text, balance int, first_seen timestamptz, primary key (group_id,user_id))
-- rounds(id uuid PK, group_id bigint, stake int, state text, join_list jsonb, started_at timestamptz, eliminated_user_id bigint, finished_at timestamptz)
-- transactions(id uuid PK, group_id bigint, user_id bigint, delta int, reason text, round_id uuid, created_at timestamptz)
+Short key layout (implementation detail):
+- `game:group:<group_id>` JSON document for Groups, Players, Rounds, Transactions
+- `game:lock:<group_id>` short-lived mutation lock
 
 Implementation notes
 
 - Bot runs behind an HTTPS webhook (recommended for production); fallback to long polling for dev.
-- Environment variables: TELEGRAM_BOT_TOKEN, DATABASE_URL, SENTRY_DSN (optional), WEBHOOK_URL, PORT, NODE_ENV.
+- Environment variables: BOT_TOKEN, REDIS_URL, SENTRY_DSN (optional), WEBHOOK_URL, PORT, NODE_ENV.
 - RNG: use secure built-in crypto.randomInt to select eliminated index.
 - GIFs: bundle a default gif_pack (3 GIF URLs mapped to countdown 3,2,1). Provide an admin command /setgifs to set custom GIF URLs (creator only).
 - Testing: unit tests for payout math and concurrency, integration tests for Telegram flows.

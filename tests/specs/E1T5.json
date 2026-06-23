@@ -8,7 +8,7 @@
           {
             "method": "sendMessage",
             "payload": {
-              "text": "Leaderboard storage is not configured. Set DATABASE_URL before viewing standings."
+              "text": "Leaderboard storage is not configured. Set REDIS_URL before viewing standings."
             }
           }
         ]
@@ -25,7 +25,7 @@
           {
             "method": "editMessageText",
             "payload": {
-              "text": "Leaderboard storage is not configured. Set DATABASE_URL before viewing standings."
+              "text": "Leaderboard storage is not configured. Set REDIS_URL before viewing standings."
             }
           }
         ]
