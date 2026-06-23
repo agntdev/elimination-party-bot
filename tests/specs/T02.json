@@ -1,0 +1,40 @@
+[
+  {
+    "name": "/start sends the main menu",
+    "steps": [
+      {
+        "send": { "text": "/start" },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": { "text": "Welcome! I am ready to help." }
+          },
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Main menu\n\nJoin an elimination round, start one now, or check scores.\nCommands: /balance, /leaderboard, /help",
+              "reply_markup": {
+                "inline_keyboard": [
+                  [
+                    { "text": "Join round", "callback_data": "join:round" },
+                    { "text": "Leave round", "callback_data": "leave:round" }
+                  ],
+                  [
+                    { "text": "Start now", "callback_data": "start:round" }
+                  ],
+                  [
+                    { "text": "Balance", "callback_data": "menu:balance" },
+                    { "text": "Leaderboard", "callback_data": "menu:leaderboard" }
+                  ],
+                  [
+                    { "text": "Help", "callback_data": "menu:help" }
+                  ]
+                ]
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
