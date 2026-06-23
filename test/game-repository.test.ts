@@ -23,6 +23,26 @@ const joinInput = {
 };
 
 describe("PostgresGameRepository", () => {
+  it("returns player balance and current-round membership", async () => {
+    const db = new ScriptedDb([[{ id: -1001 }], [{ balance: 500 }], [{ join_list: [42, 77] }]]);
+    const repository = new PostgresGameRepository(db);
+
+    await expect(repository.getBalance(joinInput)).resolves.toEqual({
+      balance: 500,
+      inCurrentRound: true,
+    });
+  });
+
+  it("returns not in round when there is no open round", async () => {
+    const db = new ScriptedDb([[{ id: -1001 }], [{ balance: 500 }], []]);
+    const repository = new PostgresGameRepository(db);
+
+    await expect(repository.getBalance(joinInput)).resolves.toEqual({
+      balance: 500,
+      inCurrentRound: false,
+    });
+  });
+
   it("adds a funded player to a new open round", async () => {
     const db = new ScriptedDb([
       [{ stake_amount: 10 }],

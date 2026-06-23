@@ -12,6 +12,13 @@ export interface JoinRoundInput {
   user: TelegramUserRef;
 }
 
+export type BalanceInput = JoinRoundInput;
+
+export interface BalanceResult {
+  balance: number;
+  inCurrentRound: boolean;
+}
+
 export interface LeaveRoundInput {
   groupId: number;
   userId: number;
@@ -65,6 +72,7 @@ export interface GameRepository {
   leaveRound(input: LeaveRoundInput): Promise<LeaveRoundResult>;
   canStartRound(input: GroupUserInput): Promise<boolean>;
   startRound(input: GroupUserInput): Promise<StartRoundResult>;
+  getBalance(input: BalanceInput): Promise<BalanceResult>;
 }
 
 function parseJoinList(value: unknown): number[] {
@@ -78,6 +86,42 @@ function parseJoinList(value: unknown): number[] {
 
 export class PostgresGameRepository implements GameRepository {
   constructor(private readonly db: Queryable) {}
+
+  async getBalance(input: BalanceInput): Promise<BalanceResult> {
+    const group = await this.db.query(
+      `INSERT INTO groups (id, name, creator_id)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (id) DO UPDATE SET
+         name = COALESCE(EXCLUDED.name, groups.name)
+       RETURNING id`,
+      [input.groupId, input.groupName ?? null, input.user.id],
+    );
+
+    const player = await this.db.query<{ balance: number }>(
+      `INSERT INTO players (group_id, user_id, username, display_name)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (group_id, user_id) DO UPDATE SET
+         username = EXCLUDED.username,
+         display_name = EXCLUDED.display_name,
+         last_seen = now()
+       RETURNING balance`,
+      [input.groupId, input.user.id, input.user.username ?? null, input.user.displayName],
+    );
+
+    const openRound = await this.db.query<{ join_list: unknown }>(
+      `SELECT join_list
+       FROM rounds
+       WHERE group_id = $1 AND state = 'open'
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [group.rows[0]?.id ?? input.groupId],
+    );
+
+    return {
+      balance: Number(player.rows[0]?.balance ?? 0),
+      inCurrentRound: parseJoinList(openRound.rows[0]?.join_list).includes(input.user.id),
+    };
+  }
 
   async canStartRound(input: GroupUserInput): Promise<boolean> {
     const group = await this.db.query<{ creator_id: number }>(
