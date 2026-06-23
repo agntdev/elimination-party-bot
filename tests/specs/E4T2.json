@@ -1,0 +1,19 @@
+[
+  {
+    "name": "Payout start path reports missing persistent storage",
+    "steps": [
+      {
+        "send": { "callback": "start:round" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Round storage is not configured. Set DATABASE_URL before starting rounds."
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

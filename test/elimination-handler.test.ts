@@ -22,12 +22,17 @@ describe("completeRandomElimination", () => {
         status: "completed",
         eliminatedUserId: 77,
         participantCount: 3,
+        stakeAmount: 10,
+        payouts: [
+          { userId: 42, amount: 5 },
+          { userId: 99, amount: 5 },
+        ],
       }),
     };
 
     await completeRandomElimination(fakeContext(messages), repository);
 
-    expect(messages).toEqual(["Eliminated player: 77."]);
+    expect(messages).toEqual(["Eliminated player: 77.\nPayouts: 42 +5, 99 +5."]);
   });
 
   it("reports when no countdown round is ready", async () => {
