@@ -16,7 +16,7 @@ composer.callbackQuery("leave:round", async (ctx) => {
     const repository = await getGameRepository();
     const result = await repository.leaveRound({
       groupId: ctx.chat.id,
-      userId: ctx.from.id,
+      username: ctx.from.username ?? String(ctx.from.id),
     });
 
     if (result.status === "not_in_round") {

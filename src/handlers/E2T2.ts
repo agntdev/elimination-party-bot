@@ -42,7 +42,7 @@ composer.command("setstake", async (ctx) => {
     const result = await repository.setStake({
       groupId: ctx.chat.id,
       groupName: groupName(ctx),
-      userId: ctx.from.id,
+      username: ctx.from.username ?? String(ctx.from.id),
       amount,
     });
 

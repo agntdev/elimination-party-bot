@@ -26,8 +26,7 @@ export interface RedisGameClient {
 }
 
 interface RedisPlayer {
-  userId: number;
-  username?: string;
+  username: string;
   displayName: string;
   balance: number;
   firstSeen: string;
@@ -38,18 +37,18 @@ interface RedisRound {
   id: string;
   stake: number;
   state: "open" | "countdown" | "complete" | "cancelled";
-  joinList: number[];
+  joinList: string[];
   joinWindowStartedAt?: string;
   joinWindowExpiresAt?: string;
   startedAt?: string;
-  eliminatedUserId?: number;
+  eliminatedUsername?: string;
   finishedAt?: string;
   createdAt: string;
 }
 
 interface RedisTransaction {
   id: string;
-  userId: number;
+  username: string;
   delta: number;
   reason: "stake_lost" | "share_won";
   groupId?: number;
@@ -60,7 +59,7 @@ interface RedisTransaction {
 interface RedisGroupState {
   id: number;
   name?: string;
-  creatorId: number;
+  creatorUsername: string;
   stakeAmount: number;
   joinWindowSeconds: number;
   gifPack: CountdownGifPack;
@@ -100,12 +99,12 @@ function parseGlobal(value: string | null): RedisGlobalState | undefined {
   };
 }
 
-function calculateStakePayouts(joinList: number[], eliminatedUserId: number, stake: number): StakePayout[] {
-  const survivors = joinList.filter((userId) => userId !== eliminatedUserId);
+function calculateStakePayouts(joinList: string[], eliminatedUsername: string, stake: number): StakePayout[] {
+  const survivors = joinList.filter((username) => username !== eliminatedUsername);
   const baseAmount = Math.floor(stake / survivors.length);
   const remainder = stake % survivors.length;
-  return survivors.map((userId, index) => ({
-    userId,
+  return survivors.map((username, index) => ({
+    username,
     amount: baseAmount + (index < remainder ? 1 : 0),
   }));
 }
@@ -128,7 +127,7 @@ export class RedisGameRepository implements GameRepository {
   async joinRound(input: JoinRoundInput): Promise<JoinRoundResult> {
     return this.withGameLock(async () => {
       const global = await this.loadOrCreateGlobal();
-      const group = await this.loadOrCreateGroup(input.groupId, input.user.id, input.groupName);
+      const group = await this.loadOrCreateGroup(input.groupId, this.usernameKey(input.user), input.groupName);
       this.migrateLegacyPlayers(group, global);
       const player = this.ensurePlayer(global, input);
       const stakeAmount = group.stakeAmount;
@@ -151,7 +150,9 @@ export class RedisGameRepository implements GameRepository {
         group.rounds.push(round);
       }
 
-      if (round.joinList.includes(input.user.id)) {
+      const playerKey = this.usernameKey(input.user);
+
+      if (round.joinList.includes(playerKey)) {
         await this.saveGroup(group);
         await this.saveGlobal(global);
         return {
@@ -165,7 +166,7 @@ export class RedisGameRepository implements GameRepository {
         };
       }
 
-      round.joinList.push(input.user.id);
+      round.joinList.push(playerKey);
       let joinWindowStarted = false;
       if (round.joinList.length >= 2 && !round.joinWindowStartedAt) {
         const startedAtMs = this.now();
@@ -194,11 +195,11 @@ export class RedisGameRepository implements GameRepository {
     return this.withGameLock(async () => {
       const group = await this.loadGroup(input.groupId);
       const round = group ? latestRound(group.rounds, "open") : undefined;
-      if (!group || !round || !round.joinList.includes(input.userId)) {
+      if (!group || !round || !round.joinList.includes(input.username)) {
         return { status: "not_in_round" };
       }
 
-      round.joinList = round.joinList.filter((userId) => userId !== input.userId);
+      round.joinList = round.joinList.filter((username) => username !== input.username);
       await this.saveGroup(group);
       return { status: "left", participantCount: round.joinList.length };
     });
@@ -206,14 +207,14 @@ export class RedisGameRepository implements GameRepository {
 
   async canStartRound(input: GroupUserInput): Promise<boolean> {
     const group = await this.loadGroup(input.groupId);
-    return group === undefined || group.creatorId === input.userId;
+    return group === undefined || group.creatorUsername === input.username;
   }
 
   async startRound(input: GroupUserInput): Promise<StartRoundResult> {
     return this.withGameLock(async () => {
       const group = await this.loadGroup(input.groupId);
       if (!group) return { status: "no_open_round" };
-      if (group.creatorId !== input.userId) return { status: "not_creator" };
+      if (group.creatorUsername !== input.username) return { status: "not_creator" };
 
       const round = latestRound(group.rounds, "open");
       if (!round) return { status: "no_open_round" };
@@ -243,16 +244,16 @@ export class RedisGameRepository implements GameRepository {
 
       const global = await this.loadOrCreateGlobal();
       this.migrateLegacyPlayers(group, global);
-      const eliminatedUserId = round.joinList[this.randomInt(round.joinList.length)]!;
-      const payouts = calculateStakePayouts(round.joinList, eliminatedUserId, round.stake);
-      const eliminated = global.players[String(eliminatedUserId)];
+      const eliminatedUsername = round.joinList[this.randomInt(round.joinList.length)]!;
+      const payouts = calculateStakePayouts(round.joinList, eliminatedUsername, round.stake);
+      const eliminated = global.players[eliminatedUsername];
       if (eliminated) {
         eliminated.balance -= round.stake;
         eliminated.lastSeen = this.nowIso();
       }
       global.transactions.push({
         id: randomUUID(),
-        userId: eliminatedUserId,
+        username: eliminatedUsername,
         delta: -round.stake,
         reason: "stake_lost",
         groupId: input.groupId,
@@ -261,14 +262,14 @@ export class RedisGameRepository implements GameRepository {
       });
 
       for (const payout of payouts) {
-        const player = global.players[String(payout.userId)];
+        const player = global.players[payout.username];
         if (player) {
           player.balance += payout.amount;
           player.lastSeen = this.nowIso();
         }
         global.transactions.push({
           id: randomUUID(),
-          userId: payout.userId,
+          username: payout.username,
           delta: payout.amount,
           reason: "share_won",
           groupId: input.groupId,
@@ -278,13 +279,13 @@ export class RedisGameRepository implements GameRepository {
       }
 
       round.state = "complete";
-      round.eliminatedUserId = eliminatedUserId;
+      round.eliminatedUsername = eliminatedUsername;
       round.finishedAt = this.nowIso();
       await this.saveGroup(group);
       await this.saveGlobal(global);
       return {
         status: "completed",
-        eliminatedUserId,
+        eliminatedUsername,
         participantCount: round.joinList.length,
         stakeAmount: round.stake,
         payouts,
@@ -295,7 +296,7 @@ export class RedisGameRepository implements GameRepository {
   async getBalance(input: BalanceInput): Promise<BalanceResult> {
     return this.withGameLock(async () => {
       const global = await this.loadOrCreateGlobal();
-      const group = await this.loadOrCreateGroup(input.groupId, input.user.id, input.groupName);
+      const group = await this.loadOrCreateGroup(input.groupId, this.usernameKey(input.user), input.groupName);
       this.migrateLegacyPlayers(group, global);
       const player = this.ensurePlayer(global, input);
       const round = latestRound(group.rounds, "open");
@@ -303,7 +304,7 @@ export class RedisGameRepository implements GameRepository {
       await this.saveGlobal(global);
       return {
         balance: player.balance,
-        inCurrentRound: Boolean(round?.joinList.includes(input.user.id)),
+        inCurrentRound: Boolean(round?.joinList.includes(this.usernameKey(input.user))),
       };
     });
   }
@@ -321,12 +322,11 @@ export class RedisGameRepository implements GameRepository {
       await this.saveGlobal(global);
 
       const entries = Object.values(global.players)
-        .sort((a, b) => b.balance - a.balance || a.displayName.localeCompare(b.displayName) || a.userId - b.userId)
+        .sort((a, b) => b.balance - a.balance || a.displayName.localeCompare(b.displayName) || a.username.localeCompare(b.username))
         .slice(page * perPage, page * perPage + perPage + 1)
         .map((player) => ({
-          userId: player.userId,
-          displayName: player.displayName,
           username: player.username,
+          displayName: player.displayName,
           balance: player.balance,
         }));
 
@@ -346,8 +346,8 @@ export class RedisGameRepository implements GameRepository {
     }
 
     return this.withGameLock(async () => {
-      const group = await this.loadOrCreateGroup(input.groupId, input.userId, input.groupName);
-      if (group.creatorId !== input.userId) return { status: "not_creator" };
+      const group = await this.loadOrCreateGroup(input.groupId, input.username, input.groupName);
+      if (group.creatorUsername !== input.username) return { status: "not_creator" };
       group.stakeAmount = input.amount;
       await this.saveGroup(group);
       return { status: "updated", stakeAmount: group.stakeAmount };
@@ -394,7 +394,7 @@ export class RedisGameRepository implements GameRepository {
 
   private async loadOrCreateGroup(
     groupId: number,
-    creatorId: number,
+    creatorUsername: string,
     groupName?: string,
   ): Promise<RedisGroupState> {
     const existing = await this.loadGroup(groupId);
@@ -406,7 +406,7 @@ export class RedisGameRepository implements GameRepository {
     return {
       id: groupId,
       ...(groupName ? { name: groupName } : {}),
-      creatorId,
+      creatorUsername,
       stakeAmount: 10,
       joinWindowSeconds: 30,
       gifPack: {},
@@ -418,18 +418,16 @@ export class RedisGameRepository implements GameRepository {
   }
 
   private ensurePlayer(global: RedisGlobalState, input: JoinRoundInput): RedisPlayer {
-    const key = String(input.user.id);
+    const key = this.usernameKey(input.user);
     const existing = global.players[key];
     if (existing) {
-      existing.username = input.user.username;
       existing.displayName = input.user.displayName;
       existing.lastSeen = this.nowIso();
       return existing;
     }
 
     const player: RedisPlayer = {
-      userId: input.user.id,
-      username: input.user.username,
+      username: key,
       displayName: input.user.displayName,
       balance: 500,
       firstSeen: this.nowIso(),
@@ -437,6 +435,10 @@ export class RedisGameRepository implements GameRepository {
     };
     global.players[key] = player;
     return player;
+  }
+
+  private usernameKey(user: { id: number; username?: string }): string {
+    return user.username ?? String(user.id);
   }
 
   private migrateLegacyPlayers(group: RedisGroupState, global: RedisGlobalState): void {

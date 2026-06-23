@@ -25,7 +25,7 @@ export async function completeRandomElimination(
     return;
   }
 
-  await ctx.reply(`Eliminated player: ${result.eliminatedUserId}.\n${formatPayoutSummary(result.payouts)}`);
+  await ctx.reply(`Eliminated player: ${result.eliminatedUsername}.\n${formatPayoutSummary(result.payouts)}`);
 }
 
 export default composer;

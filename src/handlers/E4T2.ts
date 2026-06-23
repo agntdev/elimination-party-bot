@@ -8,7 +8,7 @@ export function formatPayoutSummary(payouts: StakePayout[]): string {
   if (payouts.length === 0) {
     return "No survivor payouts.";
   }
-  return `Payouts: ${payouts.map((payout) => `${payout.userId} +${payout.amount}`).join(", ")}.`;
+  return `Payouts: ${payouts.map((payout) => `${payout.username} +${payout.amount}`).join(", ")}.`;
 }
 
 export default composer;
