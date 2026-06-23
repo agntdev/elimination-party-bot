@@ -2,6 +2,9 @@ import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
 import { getGameRepository, isGameStorageConfigError } from "../game/runtime.js";
 import { storeRoundSession } from "../game/round-session.js";
+import { getInlineMessageCreator } from "../game/inline-state.js";
+import type { GameRepository } from "../game/repository.js";
+import { inlineButton, inlineKeyboard } from "../toolkit/ui/keyboard.js";
 
 const composer = new Composer<Ctx>();
 
@@ -12,6 +15,33 @@ function displayName(ctx: Ctx): string {
 function groupName(ctx: Ctx): string | undefined {
   const chat = ctx.chat as { title?: string; username?: string; first_name?: string } | undefined;
   return chat?.title ?? chat?.username ?? chat?.first_name;
+}
+
+async function removeRunRoundButtonForNonCreator(
+  ctx: Ctx,
+  repository: GameRepository,
+): Promise<void> {
+  const inlineMessageId = ctx.callbackQuery?.inline_message_id;
+  if (!inlineMessageId) return;
+
+  const creator = await getInlineMessageCreator(inlineMessageId);
+  if (!creator) return;
+
+  const canStart = await repository.canStartRound({
+    groupId: ctx.chat!.id,
+    username: creator.usernameKey,
+  });
+
+  if (!canStart) {
+    await ctx.api.editMessageReplyMarkupInline(
+      inlineMessageId,
+      {
+        reply_markup: inlineKeyboard([
+          [inlineButton("Join", "join:round")],
+        ]),
+      },
+    );
+  }
 }
 
 composer.callbackQuery("join:round", async (ctx) => {
@@ -49,6 +79,8 @@ composer.callbackQuery("join:round", async (ctx) => {
       ...(result.joinWindowStartedAt ? { joinWindowStartedAt: result.joinWindowStartedAt } : {}),
       ...(result.joinWindowExpiresAt ? { joinWindowExpiresAt: result.joinWindowExpiresAt } : {}),
     });
+
+    await removeRunRoundButtonForNonCreator(ctx, repository);
 
     if (result.status === "already_joined") {
       await ctx.editMessageText(

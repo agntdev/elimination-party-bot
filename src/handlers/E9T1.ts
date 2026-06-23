@@ -24,7 +24,7 @@ export function startGameInlineResult(): InlineQueryResultArticle {
       message_text: START_GAME_INLINE_MESSAGE,
     },
     reply_markup: inlineKeyboard([
-      [inlineButton("Join", "join:round"), inlineButton("Run Round Now", "start:round")],
+      [inlineButton("Join", "join:round")],
     ]),
   };
 }
