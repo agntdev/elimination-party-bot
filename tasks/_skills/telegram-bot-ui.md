@@ -1,0 +1,544 @@
+---
+name: telegram-bot-ui
+description: >
+  Use when wiring Telegram keyboards — inline buttons, callback routing,
+  reply_markup, grammY attach syntax, the inlined toolkit's UI builders
+  (inlineButton, urlButton, inlineKeyboard, menuKeyboard, confirmKeyboard,
+  paginate), ForceReply markup, custom keyboards for typed input
+  (RequestContact, RequestLocation, RequestUser, RequestChat,
+  RequestManagedBot), copy_text buttons, web_app buttons.
+  Covers mechanics only — for microcopy, flow patterns, error UX,
+  onboarding, anti-patterns, see telegram-bot-ux.
+  Triggers: inline buttons, keyboard, telegram menu, bot UI, callback
+  buttons, pagination, reply_markup, ForceReply, copy_text, web_app.
+compatibility: Works with grammY alone, or the inlined toolkit builders
+  (at src/toolkit/ui/ in the bot-starter template).
+license: MIT
+---
+
+# telegram-bot-ui Skill
+
+How to wire Telegram keyboards — pure mechanics. For **what the bot
+should say and how it should feel**, see
+[telegram-bot-ux](../telegram-bot-ux/SKILL.md).
+
+> **Built for the agntdev pipeline.** See
+> [agnt-cli-builder](../agnt-cli-builder/SKILL.md) for the
+> discovery-and-claim loop. This skill teaches the inline-button, menu,
+> paginate, confirmKeyboard, ForceReply, and copy_text patterns you use
+> in your claimed task's implementation.
+
+---
+
+## 1. How Telegram Keyboards Work (Bot API)
+
+Telegram has **two keyboard types** + several markup variants for
+special inputs. Different use cases, different JSON shapes.
+
+### InlineKeyboardMarkup
+
+Buttons attached to a **specific message**. Tapping sends a
+`callback_query` back to your bot (no message to chat). Good for menus,
+confirmations, pagination.
+
+```json
+// Attached to sendMessage reply_markup field
+{
+  "inline_keyboard": [
+    [
+      { "text": "Yes", "callback_data": "confirm:42:yes" },
+      { "text": "No",  "callback_data": "confirm:42:no" }
+    ],
+    [
+      { "text": "Open Site", "url": "https://example.com" }
+    ]
+  ]
+}
+```
+
+Tap "Yes" → bot receives `callback_query` with `data: "confirm:42:yes"`.
+
+Limits (see [telegram-bot-basics](../telegram-bot-basics/SKILL.md) §4):
+
+- `callback_data` ≤ **64 BYTES** (UTF-8). Cyrillic / emoji = multi-byte.
+- ≤ 100 buttons per keyboard.
+- ≤ 8 rows (iOS scrolls at ~5).
+- Button text ≤ ~64 chars (truncated otherwise; keep ≤24 on mobile).
+
+### ReplyKeyboardMarkup
+
+**Persistent** buttons that replace the user's keyboard. Tapping sends
+a regular text message. Good for persistent menus, quick replies.
+
+```json
+{
+  "keyboard": [
+    [{ "text": "📅 Book" }, { "text": "📋 My bookings" }],
+    [{ "text": "❌ Cancel" }]
+  ],
+  "resize_keyboard": true,
+  "one_time_keyboard": false,
+  "input_field_placeholder": "Type or tap…",
+  "selective": false
+}
+```
+
+Useful params:
+
+- `resize_keyboard` — make buttons small. **Ignored on Telegram Desktop
+  5.3.2+** (it always uses 54px/button flat grid; 530px horizontal cap).
+- `one_time_keyboard: true` — hide keyboard after first tap. Good for
+  one-shot prompts.
+- `input_field_placeholder` — text in the input field above the
+  keyboard. Use it; users see this hint.
+- `selective: true` — show this keyboard only to specific users in a
+  group (rare).
+
+### ForceReply
+
+Asks the user to reply in the chat (with an inline "replying to" UI).
+Use for **mandatory typed input** the bot can't capture with buttons.
+
+```json
+{
+  "force_reply": true,
+  "input_field_placeholder": "Send your booking address…",
+  "selective": false
+}
+```
+
+User sees a "Replying to your bot…" label above the input field. Bot
+must explicitly handle the next text message (filter by session step —
+see [telegram-bot-ux](../telegram-bot-ux/SKILL.md) §6 Linear wizard).
+
+### Buttons vs commands — the heuristic
+
+| User needs to… | Use |
+|---|---|
+| Pick from a small fixed set (yes/no, choice A/B/C, page N) | Inline button |
+| Open a menu, confirm an action, paginate | Inline button |
+| Send free-form text (a contract address, a note, a search query) | `/command` + text input |
+| Type a structured argument the bot parses (date, time, amount) | `/command` + text input |
+| Mandatory text reply (replying to the bot's question) | ForceReply |
+| Persistent shortcut the user wants to tap repeatedly | Reply keyboard (use sparingly) |
+
+The old "default to inline buttons" rule is wrong. Buttons are right
+for **choices**; commands are right for **free input**. A bot that
+turns every input into a button is hostile to power users. A bot that
+uses commands for menus is hostile to mobile users.
+
+> **When in doubt, ask:** "Does the user know what to type?" If yes,
+> use a command. If no (or if there are too many valid options to
+> remember), use a button.
+
+For **what to write on the button** (verb-first, sentence case, emoji
+budget), see [telegram-bot-ux](../telegram-bot-ux/SKILL.md) §1
+Microcopy.
+
+### Edit vs send
+
+```http
+# Edit existing message (for inline keyboards — user doesn't see new messages)
+POST /bot<TOKEN>/editMessageText   { chat_id, message_id, text, reply_markup }
+
+# Edit only the keyboard (keep text)
+POST /bot<TOKEN>/editMessageReplyMarkup  { chat_id, message_id, reply_markup }
+
+# Send new message (for reply keyboard flows)
+POST /bot<TOKEN>/sendMessage  { chat_id, text, reply_markup }
+```
+
+---
+
+## 2. grammY — Using Keyboards
+
+### Attaching inline keyboard
+
+```ts
+// Inline keyboard — buttons on a message
+await ctx.reply("Choose:", {
+  reply_markup: {
+    inline_keyboard: [
+      [{ text: "Option A", callback_data: "pick:a" }],
+      [{ text: "Option B", callback_data: "pick:b" }],
+    ]
+  },
+});
+```
+
+### Attaching reply keyboard
+
+```ts
+// Reply keyboard — persistent buttons replacing user keyboard
+await ctx.reply("Main menu:", {
+  reply_markup: {
+    keyboard: [
+      [{ text: "📅 Book" }, { text: "📋 My bookings" }],
+    ],
+    resize_keyboard: true,
+    input_field_placeholder: "Tap a button…",
+  },
+});
+```
+
+### ForceReply for mandatory input
+
+```ts
+// Bot asks "send your address" — user sees "Replying to your bot"
+await ctx.reply("What's your address?", {
+  reply_markup: {
+    force_reply: true,
+    input_field_placeholder: "Type your address and send…",
+    selective: false,
+  },
+});
+```
+
+### Custom keyboard buttons for typed input (Bot API 9.4+ / 9.6+)
+
+Instead of free text, ask the user to share a contact, location, user,
+or chat via a single tap:
+
+```ts
+// Request contact
+await ctx.reply("Share your phone to register:", {
+  reply_markup: {
+    keyboard: [
+      [{ text: "📱 Share phone", request_contact: true }],
+      [{ text: "Skip", callback_data: "skip:phone" }],
+    ],
+    resize_keyboard: true,
+    one_time_keyboard: true,
+  },
+});
+
+// Request location
+await ctx.reply("Tap to share location:", {
+  reply_markup: {
+    keyboard: [
+      [{ text: "📍 Share location", request_location: true }],
+    ],
+    resize_keyboard: true,
+    one_time_keyboard: true,
+  },
+});
+
+// Request a specific user (e.g. for "refer a friend")
+await ctx.reply("Pick a friend to invite:", {
+  reply_markup: {
+    keyboard: [
+      [{ text: "👤 Pick user", request_user: {
+        request_id: 1,
+        user_is_bot: false,  // humans only
+      }}],
+    ],
+    resize_keyboard: true,
+  },
+});
+
+// Request a specific chat (e.g. for "post to a group")
+await ctx.reply("Pick a group to post in:", {
+  reply_markup: {
+    keyboard: [
+      [{ text: "💬 Pick group", request_chat: {
+        request_id: 2,
+        chat_is_channel: false,
+        chat_is_forum: false,
+      }}],
+    ],
+    resize_keyboard: true,
+  },
+});
+
+// Request a managed bot (Bot API 9.6+)
+await ctx.reply("Pick a bot to delegate to:", {
+  reply_markup: {
+    keyboard: [
+      [{ text: "🤖 Pick bot", request_managed_bot: { request_id: 3 } }],
+    ],
+    resize_keyboard: true,
+  },
+});
+```
+
+When the user taps one of these buttons, the resulting `Message` has
+the shared data pre-filled (`contact`, `location`, `user_shared`,
+`chat_shared`, `managed_bot_shared`). Handle it explicitly:
+
+```ts
+bot.on("message:contact", async (ctx) => {
+  if (ctx.session.step === "awaiting_phone") {
+    ctx.session.phone = ctx.message.contact.phone_number;
+    ctx.session.step = "phone_done";
+    await ctx.reply("Got it, thanks!");
+  }
+});
+```
+
+### Handling callback data
+
+```ts
+// Exact match
+bot.callbackQuery("pick:a", async (ctx) => {
+  await ctx.answerCallbackQuery();
+  await ctx.editMessageText("You picked A");
+});
+
+// Prefix routing (scalable pattern)
+bot.on("callback_query:data", async (ctx) => {
+  const data = ctx.callbackQuery.data;
+
+  if (data.startsWith("pick:")) {
+    const choice = data.split(":")[1];
+    await ctx.editMessageText(`Picked ${choice}`);
+  }
+
+  await ctx.answerCallbackQuery();
+});
+```
+
+> **Regex first-match warning.** When you use `bot.callbackQuery(/^pick:/, ...)`
+> or a `bot.on("callback_query:data")` handler with several `if
+> (data.startsWith(...))` branches, the order matters: the first
+> matching handler wins, and Telegram only delivers one callback
+> per tap. Two common bugs:
+>
+> 1. **Catch-all first.** If you have a generic `data.startsWith(":")`
+>    branch BEFORE a specific `data.startsWith("pick:")` branch, the
+>    catch-all eats every callback and the specific branch never
+>    runs. Put specific prefixes first.
+> 2. **Short prefix swallows long prefix.** `data.startsWith("a")`
+>    matches `"a:42"` AND `"apple:42"`. Use a delimiter: `"a:"` not
+>    `"a"`. Or use full equality + a switch.
+>
+> Pattern that works: route by `data.split(":")[0] + ":"` (the
+> namespaced prefix), not by the first character.
+
+### Edit vs new message in grammY
+
+```ts
+// Edit existing message (smooth UX — no message spam)
+await ctx.editMessageText("Updated text", { reply_markup: newKeyboard });
+
+// Edit just the keyboard, keep text
+await ctx.editMessageReplyMarkup({ reply_markup: newKeyboard });
+
+// Send a new message (keeps history visible)
+await ctx.reply("New message");
+
+// Do nothing but stop spinner
+await ctx.answerCallbackQuery();
+```
+
+> Telegram endorses the edit-in-place pattern explicitly:
+> *"To provide a better UX, consider editing your keyboard when the
+> user toggles a setting button or navigates to a new page – this is
+> both faster and smoother than sending a whole new message and
+> deleting the previous one."* — core.telegram.org/bots/features
+
+For **flow patterns that use edit-in-place** (linear wizard, branching
+menu, undo, checklist), see
+[telegram-bot-ux](../telegram-bot-ux/SKILL.md) §6.
+
+### Callback data pattern
+
+Namespaced prefix keeps routing simple:
+
+```
+menu:<action>            — main menu actions
+select:<id>              — item selection
+confirm:<action>:<id>    — confirmation flow
+page:<n>                 — page jump
+pg:prev:<n> / pg:next:<n> — paginate helper
+```
+
+Mind the 64-byte limit (`telegram-bot-basics` §4). For non-ASCII
+projects, prefer short prefixes and put the long ID in your own
+server-side map keyed by a UUID sent in `callback_data`.
+
+---
+
+## 3. The toolkit (`src/toolkit/`) — UI Builders
+
+The inlined toolkit (at `src/toolkit/` in the bot-starter template)
+provides **pure builders** that return plain `InlineKeyboardMarkup`
+objects. No grammY import needed — they produce the exact JSON
+shapes grammY expects.
+
+```ts
+import {
+  inlineButton, urlButton, copyTextButton, webAppButton,
+  inlineKeyboard, menuKeyboard, confirmKeyboard, paginate,
+} from "../src/toolkit/ui/buttons.js";
+```
+
+### inlineButton(text, callbackData)
+
+```ts
+inlineButton("Yes", "confirm:42")
+// → { text: "Yes", callback_data: "confirm:42" }
+// Type: { text: string; callback_data: string }
+```
+
+### urlButton(text, url)
+
+```ts
+urlButton("Docs", "https://agnt-gm.ai")
+// → { text: "Docs", url: "https://agnt-gm.ai" }
+// Type: { text: string; url: string }
+```
+
+### copyTextButton(text, copyText) — one-tap copy
+
+```ts
+copyTextButton("📋 Copy order ID", "ORD-12345")
+// → { text: "📋 Copy order ID", copy_text: { text: "ORD-12345" } }
+// Type: { text: string; copy_text: { text: string } }
+```
+
+Use this for IDs, addresses, codes, links — anything users would
+otherwise long-press to copy. Saves 4 taps per interaction. See
+[telegram-bot-ux](../telegram-bot-ux/SKILL.md) §10 anti-pattern "no
+copy_text for IDs".
+
+### webAppButton(text, url) — open Mini App
+
+```ts
+webAppButton("🛒 Open shop", "https://shop.example.com/twa")
+// → { text: "🛒 Open shop", web_app: { url: "https://shop.example.com/twa" } }
+// Type: { text: string; web_app: { url: string } }
+```
+
+Bot API 9.4+. Use when the flow has grown past what inline keyboards can
+carry — see [telegram-bot-ux](../telegram-bot-ux/SKILL.md) §8 Mini App
+graduation for the 4 explicit thresholds.
+
+### inlineKeyboard(rows)
+
+Wrap rows of buttons into valid `InlineKeyboardMarkup`:
+
+```ts
+const kb = inlineKeyboard([
+  [inlineButton("A", "a"), inlineButton("B", "b")],
+  [urlButton("Docs", "https://x.io")],
+]);
+
+await ctx.reply("Choose:", { reply_markup: kb });
+```
+
+### menuKeyboard(items, columns?)
+
+Grid layout from a flat list. Default 1 column.
+
+```ts
+const items = [
+  { text: "📅 Book", data: "menu:book" },
+  { text: "📋 My bookings", data: "menu:my" },
+  { text: "❌ Cancel", data: "menu:cancel" },
+  { text: "ℹ️ Help", data: "menu:help" },
+];
+
+menuKeyboard(items);     // vertical list, 1 per row
+menuKeyboard(items, 2);  // 2-column grid
+```
+
+### confirmKeyboard(actionPrefix, opts?)
+
+Yes/No row. Callbacks: `<prefix>:yes` / `<prefix>:no`.
+
+```ts
+confirmKeyboard("delete:42");
+// → [✅ Yes ("delete:42:yes")] [❌ No ("delete:42:no")]
+
+confirmKeyboard("publish", { yes: "🚀 Publish", no: "🔙 Back" });
+```
+
+Handler:
+
+```ts
+bot.on("callback_query:data", async (ctx) => {
+  const data = ctx.callbackQuery.data;
+  if (data.startsWith("delete:")) {
+    const [, id, action] = data.split(":");
+    await ctx.editMessageText(action === "yes" ? `Deleted ${id}` : "Cancelled");
+  }
+  await ctx.answerCallbackQuery();
+});
+```
+
+### paginate(items, options)
+
+Slice items into pages with prev/next controls.
+
+```ts
+const result = paginate(allItems, {
+  page: 0,               // 0-based, auto-clamped
+  perPage: 5,
+  callbackPrefix: "pg",   // default: "page"
+  prevLabel: "« Prev",
+  nextLabel: "Next »",
+});
+
+// result.pageItems  — items for current page
+// result.totalPages — how many pages
+// result.page       — actual page number (may be clamped)
+// result.controls   — InlineKeyboardMarkup with prev/next buttons
+```
+
+Single page → empty controls. First page → only Next. Last page → only Prev. Middle → both.
+
+**Full pagination handler:**
+
+```ts
+async function showPage(ctx: BotContext, page: number) {
+  const items = await loadItems();
+  const { pageItems, controls } = paginate(items, { page, perPage: 5 });
+
+  const rows = pageItems.map(item => [
+    inlineButton(item.name, `select:${item.id}`),
+  ]);
+
+  const keyboard = inlineKeyboard([...rows, ...controls.inline_keyboard]);
+  await ctx.editMessageText("Choose an item:", { reply_markup: keyboard });
+}
+
+bot.on("callback_query:data", async (ctx) => {
+  const data = ctx.callbackQuery.data;
+  if (data.startsWith("pg:next:")) await showPage(ctx, parseInt(data.split(":")[2]));
+  if (data.startsWith("pg:prev:")) await showPage(ctx, parseInt(data.split(":")[2]));
+  await ctx.answerCallbackQuery();
+});
+```
+
+**Callback format:** `<prefix>:prev:<n>` / `<prefix>:next:<n>` where `n` = target page index.
+
+---
+
+## 4. Toolkit vs Pure grammY
+
+| Task | Pure grammY | Toolkit |
+|---|---|---|
+| Inline button | `{ text: "Hi", callback_data: "x" }` | `inlineButton("Hi", "x")` |
+| URL button | `{ text: "Link", url: "..." }` | `urlButton("Link", "...")` |
+| Copy-text button | `{ text: "Copy", copy_text: { text: "..." } }` | `copyTextButton("Copy", "...")` |
+| Web App button | `{ text: "Open", web_app: { url: "..." } }` | `webAppButton("Open", "...")` |
+| Grid menu | Manual row chunking | `menuKeyboard(items, cols)` |
+| Confirm row | Manual 2-button row | `confirmKeyboard("prefix")` |
+| Paginate | Manual slice + prev/next logic | `paginate(items, opts)` |
+
+Toolkit builders produce the **same JSON shapes** grammY expects. They're convenience, not lock-in. Use them when you want less boilerplate. Skip them when you need full control.
+
+---
+
+## Common mistakes
+
+1. **`inline_keyboard` in `keyboard` field** — different objects. Inline keyboards go under `reply_markup.inline_keyboard`. Reply keyboards under `reply_markup.keyboard`.
+2. **`paginate()` without handler** — buttons generate `pg:prev:X` / `pg:next:X` data. Must route them in callback handler.
+3. **Not catching unknown callbacks** — always have fallback `answerCallbackQuery` for stray callback data.
+4. **Using `editMessageText` on a new message** — you need `message_id` from a previous reply. `ctx.reply()` for first message, `ctx.editMessageText()` for updates.
+5. **64-byte `callback_data` with non-ASCII** — Telegram rejects with `BUTTON_DATA_INVALID`. It's BYTES, not chars. See `telegram-bot-basics` §4.
+6. **ForceReply without a step filter** — every text message in the chat will trigger your "awaiting X" handler. Gate by `ctx.session.step`. See `telegram-bot-ux` §6.
+7. **Reply keyboard + `resize_keyboard: true` then relying on it on Desktop** — Telegram Desktop 5.3.2+ ignores `resize_keyboard`. Design for 4 columns max.
+8. **Missing `input_field_placeholder`** — users see an empty input field and don't know what to type. Always set it.
+9. **`one_time_keyboard: false` (default) on one-shot prompts** — keyboard stays around after the user taps. Set `one_time_keyboard: true` for "tap once, I'm done" flows.
+10. **Sharing a custom keyboard for `RequestContact` after the user already shared** — old keyboard still visible. Send a new message with `remove_keyboard: true` or update the keyboard.
