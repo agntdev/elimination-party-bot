@@ -3,7 +3,7 @@ import type { Ctx } from "../bot.js";
 import { getGameRepository, isGameStorageConfigError } from "../game/runtime.js";
 import { storeRoundSession } from "../game/round-session.js";
 import { insufficientBalanceReplyMarkup } from "./E6T1.js";
-import { USERNAME_REQUIRED_TEXT } from "./E8T3.js";
+import { inlineButton, inlineKeyboard } from "../toolkit/ui/keyboard.js";
 
 const composer = new Composer<Ctx>();
 
@@ -16,6 +16,10 @@ function groupName(ctx: Ctx): string | undefined {
   return chat?.title ?? chat?.username ?? chat?.first_name;
 }
 
+function usernameKey(ctx: Ctx): string {
+  return ctx.from?.username ?? String(ctx.from!.id);
+}
+
 composer.callbackQuery("join:round", async (ctx) => {
   await ctx.answerCallbackQuery();
 
@@ -26,11 +30,6 @@ composer.callbackQuery("join:round", async (ctx) => {
 
   try {
     const repository = await getGameRepository();
-
-    if (!ctx.from.username) {
-      await ctx.editMessageText(USERNAME_REQUIRED_TEXT);
-      return;
-    }
 
     const result = await repository.joinRound({
       groupId: ctx.chat.id,
@@ -58,9 +57,21 @@ composer.callbackQuery("join:round", async (ctx) => {
       ...(result.joinWindowExpiresAt ? { joinWindowExpiresAt: result.joinWindowExpiresAt } : {}),
     });
 
+    const username = usernameKey(ctx);
+    const canStart = await repository.canStartRound({
+      groupId: ctx.chat.id,
+      username,
+    });
+
+    const keyboardButtons = [[inlineButton("Join", "join:round")]];
+    if (canStart) {
+      keyboardButtons[0]!.push(inlineButton("Run Round Now", "start:round"));
+    }
+
     if (result.status === "already_joined") {
       await ctx.editMessageText(
         `You are already in this round. Players joined: ${result.participantCount}.`,
+        { reply_markup: inlineKeyboard(keyboardButtons) },
       );
       return;
     }
@@ -70,6 +81,7 @@ composer.callbackQuery("join:round", async (ctx) => {
       : "";
     await ctx.editMessageText(
       `Joined the round. Stake: ${result.stakeAmount} points. Players joined: ${result.participantCount}.${joinWindow}`,
+      { reply_markup: inlineKeyboard(keyboardButtons) },
     );
   } catch (err) {
     if (isGameStorageConfigError(err)) {

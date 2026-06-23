@@ -3,7 +3,6 @@ import type { Ctx } from "../bot.js";
 import { getGameRepository, isGameStorageConfigError } from "../game/runtime.js";
 import { sendCountdown } from "./E3T1.js";
 import { completeRandomElimination } from "./E4T1.js";
-import { USERNAME_REQUIRED_TEXT } from "./E8T3.js";
 
 const composer = new Composer<Ctx>();
 
@@ -18,14 +17,9 @@ composer.callbackQuery("start:round", async (ctx) => {
   try {
     const repository = await getGameRepository();
 
-    if (!ctx.from.username) {
-      await ctx.editMessageText(USERNAME_REQUIRED_TEXT);
-      return;
-    }
-
     const result = await repository.startRound({
       groupId: ctx.chat.id,
-      username: ctx.from.username,
+      username: ctx.from.username ?? String(ctx.from.id),
     });
 
     if (result.status === "not_creator") {
