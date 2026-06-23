@@ -1,0 +1,35 @@
+[
+  {
+    "name": "/balance reports missing persistent storage",
+    "steps": [
+      {
+        "send": { "text": "/balance" },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Balance storage is not configured. Set DATABASE_URL before checking balance."
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Balance button reports missing persistent storage",
+    "steps": [
+      {
+        "send": { "callback": "menu:balance" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Balance storage is not configured. Set DATABASE_URL before checking balance."
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
