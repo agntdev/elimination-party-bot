@@ -66,6 +66,8 @@ export type SetStakeResult =
       status: "not_creator";
     };
 
+export type CountdownGifPack = Record<string, string>;
+
 export type JoinRoundResult =
   | {
       status: "joined" | "already_joined";
@@ -97,6 +99,7 @@ export type StartRoundResult =
   | {
       status: "started";
       participantCount: number;
+      gifPack: CountdownGifPack;
     }
   | {
       status: "not_creator";
@@ -126,6 +129,26 @@ function parseJoinList(value: unknown): number[] {
     return Array.isArray(parsed) ? parsed.map(Number) : [];
   }
   return [];
+}
+
+function parseJsonObject(value: unknown): Record<string, unknown> {
+  if (typeof value === "string") {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  }
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function parseGifPack(value: unknown): CountdownGifPack {
+  return Object.fromEntries(
+    Object.entries(parseJsonObject(value)).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim() !== "",
+    ),
+  );
 }
 
 interface RoundWindowRow extends Record<string, unknown> {
@@ -274,8 +297,8 @@ export class PostgresGameRepository implements GameRepository {
   async startRound(input: GroupUserInput): Promise<StartRoundResult> {
     await this.db.query("BEGIN");
     try {
-      const group = await this.db.query<{ creator_id: number }>(
-        `SELECT creator_id
+      const group = await this.db.query<{ creator_id: number; gif_pack: unknown }>(
+        `SELECT creator_id, gif_pack
          FROM groups
          WHERE id = $1
          FOR UPDATE`,
@@ -317,7 +340,7 @@ export class PostgresGameRepository implements GameRepository {
       );
 
       await this.db.query("COMMIT");
-      return { status: "started", participantCount };
+      return { status: "started", participantCount, gifPack: parseGifPack(group.rows[0]?.gif_pack) };
     } catch (err) {
       await this.db.query("ROLLBACK");
       throw err;
