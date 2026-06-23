@@ -1,0 +1,49 @@
+[
+  {
+    "name": "/help lists commands and main menu actions",
+    "steps": [
+      {
+        "send": { "text": "/help" },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Elimination Party Bot help\n\nCommands:\n/start - Show the main menu\n/help - Show this help\n/balance - Show your points and round status\n/leaderboard - Show the group leaderboard\n/setstake <amount> - Set the group stake\n\nMain menu buttons:\nJoin round - Enter the open round\nLeave round - Leave before the countdown\nStart now - Begin once enough players have joined\nBalance - Open your current score\nLeaderboard - Open the group standings\nHelp - Open this guide\n\nRules: join a round, survive the elimination, and share the eliminated player's stake."
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "help button opens the same guide",
+    "steps": [
+      {
+        "send": { "callback": "menu:help" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Elimination Party Bot help\n\nCommands:\n/start - Show the main menu\n/help - Show this help\n/balance - Show your points and round status\n/leaderboard - Show the group leaderboard\n/setstake <amount> - Set the group stake\n\nMain menu buttons:\nJoin round - Enter the open round\nLeave round - Leave before the countdown\nStart now - Begin once enough players have joined\nBalance - Open your current score\nLeaderboard - Open the group standings\nHelp - Open this guide\n\nRules: join a round, survive the elimination, and share the eliminated player's stake."
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "unknown command uses the global fallback",
+    "steps": [
+      {
+        "send": { "text": "/unknown" },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": { "text": "Sorry, I didn't understand that. Try /help." }
+          }
+        ]
+      }
+    ]
+  }
+]
