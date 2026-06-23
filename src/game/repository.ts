@@ -50,6 +50,22 @@ export interface LeaderboardResult {
   hasNext: boolean;
 }
 
+export interface SetStakeInput {
+  groupId: number;
+  groupName?: string;
+  userId: number;
+  amount: number;
+}
+
+export type SetStakeResult =
+  | {
+      status: "updated";
+      stakeAmount: number;
+    }
+  | {
+      status: "not_creator";
+    };
+
 export type JoinRoundResult =
   | {
       status: "joined" | "already_joined";
@@ -100,6 +116,7 @@ export interface GameRepository {
   startRound(input: GroupUserInput): Promise<StartRoundResult>;
   getBalance(input: BalanceInput): Promise<BalanceResult>;
   getLeaderboard(input: LeaderboardInput): Promise<LeaderboardResult>;
+  setStake(input: SetStakeInput): Promise<SetStakeResult>;
 }
 
 function parseJoinList(value: unknown): number[] {
@@ -165,6 +182,46 @@ export class PostgresGameRepository implements GameRepository {
       hasPrevious: page > 0,
       hasNext: rows.rows.length > perPage,
     };
+  }
+
+  async setStake(input: SetStakeInput): Promise<SetStakeResult> {
+    if (!Number.isSafeInteger(input.amount) || input.amount < 1) {
+      throw new Error("stake amount must be an integer greater than or equal to 1");
+    }
+
+    await this.db.query("BEGIN");
+    try {
+      const group = await this.db.query<{ creator_id: number }>(
+        `INSERT INTO groups (id, name, creator_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (id) DO UPDATE SET
+           name = COALESCE(EXCLUDED.name, groups.name)
+         RETURNING creator_id`,
+        [input.groupId, input.groupName ?? null, input.userId],
+      );
+      const creatorId = group.rows[0]?.creator_id;
+      if (creatorId !== undefined && Number(creatorId) !== input.userId) {
+        await this.db.query("COMMIT");
+        return { status: "not_creator" };
+      }
+
+      const updated = await this.db.query<{ stake_amount: number }>(
+        `UPDATE groups
+         SET stake_amount = $2
+         WHERE id = $1
+         RETURNING stake_amount`,
+        [input.groupId, input.amount],
+      );
+
+      await this.db.query("COMMIT");
+      return {
+        status: "updated",
+        stakeAmount: Number(updated.rows[0]?.stake_amount ?? input.amount),
+      };
+    } catch (err) {
+      await this.db.query("ROLLBACK");
+      throw err;
+    }
   }
 
   async getBalance(input: BalanceInput): Promise<BalanceResult> {
