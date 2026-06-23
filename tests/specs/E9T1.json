@@ -1,0 +1,90 @@
+[
+  {
+    "name": "@bot start inline query suggests starting an elimination game",
+    "steps": [
+      {
+        "send": {
+          "update": {
+            "update_id": 901,
+            "inline_query": {
+              "id": "inline-start-1",
+              "from": {
+                "id": 101,
+                "is_bot": false,
+                "first_name": "Ada",
+                "username": "ada"
+              },
+              "query": "start",
+              "offset": "",
+              "chat_type": "group"
+            }
+          }
+        },
+        "expect": [
+          {
+            "method": "answerInlineQuery",
+            "payload": {
+              "inline_query_id": "inline-start-1",
+              "cache_time": 0,
+              "is_personal": true,
+              "results": [
+                {
+                  "type": "article",
+                  "id": "start-elimination-game",
+                  "title": "Start an elimination game",
+                  "description": "Post a starter message in this chat.",
+                  "input_message_content": {
+                    "message_text": "Elimination Party\n\nStart a new elimination round in this chat.\nPlayers can join the round, then the creator can run it when everyone is ready."
+                  },
+                  "reply_markup": {
+                    "inline_keyboard": [
+                      [
+                        { "text": "Join", "callback_data": "join:round" },
+                        { "text": "Run Round Now", "callback_data": "start:round" }
+                      ]
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "unsupported inline query returns an empty result list",
+    "steps": [
+      {
+        "send": {
+          "update": {
+            "update_id": 902,
+            "inline_query": {
+              "id": "inline-other-1",
+              "from": {
+                "id": 102,
+                "is_bot": false,
+                "first_name": "Ben",
+                "username": "ben"
+              },
+              "query": "scores",
+              "offset": "",
+              "chat_type": "group"
+            }
+          }
+        },
+        "expect": [
+          {
+            "method": "answerInlineQuery",
+            "payload": {
+              "inline_query_id": "inline-other-1",
+              "cache_time": 0,
+              "is_personal": true,
+              "results": []
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
