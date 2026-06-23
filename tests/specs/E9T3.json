@@ -1,0 +1,61 @@
+[
+  {
+    "name": "join:round callback adds user to the round",
+    "steps": [
+      {
+        "send": { "callback": "e2e:seed" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "editMessageText", "payload": { "text": "E2E round fixture ready." } }
+        ]
+      },
+      {
+        "send": { "callback": "join:round", "userId": 101 },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "editMessageText", "payload": { "text": "Joined the round. Stake: 10 points. Players joined: 1." } }
+        ]
+      },
+      {
+        "send": { "callback": "e2e:reset" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "editMessageText", "payload": { "text": "E2E round fixture cleared." } }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "join:round callback shows already joined message",
+    "steps": [
+      {
+        "send": { "callback": "e2e:seed" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "editMessageText", "payload": { "text": "E2E round fixture ready." } }
+        ]
+      },
+      {
+        "send": { "callback": "join:round", "userId": 101 },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "editMessageText", "payload": { "text": "Joined the round. Stake: 10 points. Players joined: 1." } }
+        ]
+      },
+      {
+        "send": { "callback": "join:round", "userId": 101 },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "editMessageText", "payload": { "text": "You are already in this round. Players joined: 1." } }
+        ]
+      },
+      {
+        "send": { "callback": "e2e:reset" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "editMessageText", "payload": { "text": "E2E round fixture cleared." } }
+        ]
+      }
+    ]
+  }
+]
