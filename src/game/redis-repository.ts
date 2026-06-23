@@ -6,6 +6,8 @@ import type {
   EliminateRandomPlayerInput,
   EliminateRandomPlayerResult,
   GameRepository,
+  GetCurrentRoundInput,
+  GetCurrentRoundResult,
   GroupUserInput,
   JoinRoundInput,
   JoinRoundResult,
@@ -305,6 +307,23 @@ export class RedisGameRepository implements GameRepository {
       return {
         balance: player.balance,
         inCurrentRound: Boolean(round?.joinList.includes(this.usernameKey(input.user))),
+      };
+    });
+  }
+
+  async getCurrentRound(input: GetCurrentRoundInput): Promise<GetCurrentRoundResult> {
+    return this.withGameLock(async () => {
+      const group = await this.loadGroup(input.groupId);
+      const round = group ? latestRound(group.rounds, "open") : undefined;
+      if (!round) return { round: undefined };
+      return {
+        round: {
+          state: round.state,
+          stake: round.stake,
+          joinList: [...round.joinList],
+          ...(round.joinWindowStartedAt ? { joinWindowStartedAt: round.joinWindowStartedAt } : {}),
+          ...(round.joinWindowExpiresAt ? { joinWindowExpiresAt: round.joinWindowExpiresAt } : {}),
+        },
       };
     });
   }

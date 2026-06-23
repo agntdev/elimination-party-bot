@@ -113,6 +113,20 @@ export interface EliminateRandomPlayerInput {
   groupId: number;
 }
 
+export interface GetCurrentRoundInput {
+  groupId: number;
+}
+
+export interface GetCurrentRoundResult {
+  round: {
+    state: "open" | "countdown" | "complete" | "cancelled";
+    stake: number;
+    joinList: string[];
+    joinWindowStartedAt?: string;
+    joinWindowExpiresAt?: string;
+  } | undefined;
+}
+
 export interface StakePayout {
   username: string;
   amount: number;
@@ -141,6 +155,7 @@ export interface GameRepository {
   startRound(input: GroupUserInput): Promise<StartRoundResult>;
   eliminateRandomPlayer(input: EliminateRandomPlayerInput): Promise<EliminateRandomPlayerResult>;
   getBalance(input: BalanceInput): Promise<BalanceResult>;
+  getCurrentRound(input: GetCurrentRoundInput): Promise<GetCurrentRoundResult>;
   getLeaderboard(input: LeaderboardInput): Promise<LeaderboardResult>;
   setStake(input: SetStakeInput): Promise<SetStakeResult>;
 }

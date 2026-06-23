@@ -21,18 +21,8 @@ composer.command("round", async (ctx) => {
       return;
     }
 
-    await repository.getBalance({
-      groupId: ctx.chat.id,
-      user: {
-        id: ctx.from.id,
-        username: ctx.from.username,
-        displayName:
-          [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ") ||
-          "Player",
-      },
-    });
-
-    const round = ctx.session.currentRound;
+    const currentRound = await repository.getCurrentRound({ groupId: ctx.chat.id });
+    const round = currentRound.round;
     if (!round) {
       await ctx.reply("No active round in this chat. Join a round first with /join.");
       return;
