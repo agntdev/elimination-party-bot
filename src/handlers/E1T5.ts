@@ -55,6 +55,10 @@ function storageErrorText(err: unknown): string | undefined {
 composer.command("leaderboard", async (ctx) => {
   try {
     const result = await loadLeaderboard(ctx, 0);
+    if (!ctx.from?.username) {
+      await ctx.reply("You need a Telegram username to use this command. Set one in Telegram Settings.");
+      return;
+    }
     await ctx.reply(formatLeaderboard(result), { reply_markup: leaderboardKeyboard(result) });
   } catch (err) {
     const text = storageErrorText(err);
@@ -70,6 +74,10 @@ composer.callbackQuery("menu:leaderboard", async (ctx) => {
   await ctx.answerCallbackQuery();
   try {
     const result = await loadLeaderboard(ctx, 0);
+    if (!ctx.from?.username) {
+      await ctx.editMessageText("You need a Telegram username to use this command. Set one in Telegram Settings.");
+      return;
+    }
     await ctx.editMessageText(formatLeaderboard(result), {
       reply_markup: leaderboardKeyboard(result),
     });
@@ -87,6 +95,10 @@ composer.callbackQuery(/^leaderboard:page:\d+$/, async (ctx) => {
   await ctx.answerCallbackQuery();
   try {
     const result = await loadLeaderboard(ctx, parsePage(ctx.callbackQuery.data));
+    if (!ctx.from?.username) {
+      await ctx.editMessageText("You need a Telegram username to use this command. Set one in Telegram Settings.");
+      return;
+    }
     await ctx.editMessageText(formatLeaderboard(result), {
       reply_markup: leaderboardKeyboard(result),
     });

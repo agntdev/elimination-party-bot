@@ -4,11 +4,9 @@ import { getGameRepository, isGameStorageConfigError } from "../game/runtime.js"
 
 const composer = new Composer<Ctx>();
 
-composer.callbackQuery("leave:round", async (ctx) => {
-  await ctx.answerCallbackQuery();
-
+composer.command("leave", async (ctx) => {
   if (!ctx.chat || !ctx.from) {
-    await ctx.editMessageText("Unable to leave: Telegram did not include chat or user details.");
+    await ctx.reply("Unable to leave: Telegram did not include chat or user details.");
     return;
   }
 
@@ -16,7 +14,7 @@ composer.callbackQuery("leave:round", async (ctx) => {
     const repository = await getGameRepository();
 
     if (!ctx.from.username) {
-      await ctx.editMessageText("You need a Telegram username to use this command. Set one in Telegram Settings.");
+      await ctx.reply("You need a Telegram username to use this command. Set one in Telegram Settings.");
       return;
     }
 
@@ -26,14 +24,14 @@ composer.callbackQuery("leave:round", async (ctx) => {
     });
 
     if (result.status === "not_in_round") {
-      await ctx.editMessageText("You are not in the current open round.");
+      await ctx.reply("You are not in the current open round.");
       return;
     }
 
-    await ctx.editMessageText(`You left the round. Players joined: ${result.participantCount}.`);
+    await ctx.reply(`You left the round. Players joined: ${result.participantCount}.`);
   } catch (err) {
     if (isGameStorageConfigError(err)) {
-      await ctx.editMessageText("Round storage is not configured. Set REDIS_URL before leaving rounds.");
+      await ctx.reply("Round storage is not configured. Set REDIS_URL before leaving rounds.");
       return;
     }
     throw err;

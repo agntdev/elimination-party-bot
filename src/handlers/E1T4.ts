@@ -23,6 +23,11 @@ async function loadBalanceText(ctx: Ctx): Promise<string> {
   }
 
   const repository = await getGameRepository();
+
+  if (!ctx.from.username) {
+    return "You need a Telegram username to use this command. Set one in Telegram Settings.";
+  }
+
   const result = await repository.getBalance({
     groupId: ctx.chat.id,
     groupName: groupName(ctx),
