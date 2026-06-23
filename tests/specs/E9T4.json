@@ -30,7 +30,7 @@
         ]
       },
       {
-        "send": { "callback": "join:round", "userId": 101 },
+        "send": { "callback": "join:round", "userId": 101, "username": "101" },
         "expect": [
           { "method": "answerCallbackQuery" },
           {
@@ -42,7 +42,7 @@
         ]
       },
       {
-        "send": { "callback": "join:round", "userId": 202 },
+        "send": { "callback": "join:round", "userId": 202, "username": "202" },
         "expect": [
           { "method": "answerCallbackQuery" },
           {
@@ -54,7 +54,7 @@
         ]
       },
       {
-        "send": { "callback": "start:round", "userId": 101 },
+        "send": { "callback": "start:round", "userId": 101, "username": "101" },
         "expect": [
           { "method": "answerCallbackQuery" },
           {

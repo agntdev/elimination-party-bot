@@ -10,7 +10,7 @@
         ]
       },
       {
-        "send": { "callback": "join:round", "userId": 101 },
+        "send": { "callback": "join:round", "userId": 101, "username": "101" },
         "expect": [
           { "method": "answerCallbackQuery" },
           { "method": "editMessageText", "payload": { "text": "Joined the round. Stake: 10 points. Players joined: 1." } }
@@ -36,14 +36,14 @@
         ]
       },
       {
-        "send": { "callback": "join:round", "userId": 101 },
+        "send": { "callback": "join:round", "userId": 101, "username": "101" },
         "expect": [
           { "method": "answerCallbackQuery" },
           { "method": "editMessageText", "payload": { "text": "Joined the round. Stake: 10 points. Players joined: 1." } }
         ]
       },
       {
-        "send": { "callback": "join:round", "userId": 101 },
+        "send": { "callback": "join:round", "userId": 101, "username": "101" },
         "expect": [
           { "method": "answerCallbackQuery" },
           { "method": "editMessageText", "payload": { "text": "You are already in this round. Players joined: 1." } }
