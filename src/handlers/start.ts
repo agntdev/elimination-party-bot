@@ -5,7 +5,7 @@ import { inlineButton, inlineKeyboard } from "../toolkit/ui/keyboard.js";
 const composer = new Composer<Ctx>();
 
 const mainMenu = inlineKeyboard([
-  [inlineButton("Join", "join:round"), inlineButton("Leave round", "leave:round")],
+  [inlineButton("Join", "join:round"), inlineButton("Leave", "leave:round")],
   [inlineButton("Start now", "start:round")],
   [inlineButton("Balance", "menu:balance"), inlineButton("Leaderboard", "menu:leaderboard")],
   [inlineButton("Help", "menu:help")],

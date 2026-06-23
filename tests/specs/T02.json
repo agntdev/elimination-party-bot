@@ -17,7 +17,7 @@
                 "inline_keyboard": [
                   [
                     { "text": "Join", "callback_data": "join:round" },
-                    { "text": "Leave round", "callback_data": "leave:round" }
+                    { "text": "Leave", "callback_data": "leave:round" }
                   ],
                   [
                     { "text": "Start now", "callback_data": "start:round" }

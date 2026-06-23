@@ -77,4 +77,31 @@ describe("PostgresGameRepository", () => {
 
     expect(db.calls.some((call) => call.sql.includes("UPDATE rounds"))).toBe(false);
   });
+
+  it("removes a player from the current open round", async () => {
+    const db = new ScriptedDb([
+      [{ id: "round-1", join_list: [42, 77] }],
+      [{ join_list: [77] }],
+    ]);
+    const repository = new PostgresGameRepository(db);
+
+    await expect(repository.leaveRound({ groupId: -1001, userId: 42 })).resolves.toEqual({
+      status: "left",
+      participantCount: 1,
+    });
+
+    const update = db.calls.find((call) => call.sql.includes("UPDATE rounds"));
+    expect(update?.params).toEqual(["round-1", "[77]"]);
+  });
+
+  it("does not update a round when the player has not joined", async () => {
+    const db = new ScriptedDb([[{ id: "round-1", join_list: [77] }]]);
+    const repository = new PostgresGameRepository(db);
+
+    await expect(repository.leaveRound({ groupId: -1001, userId: 42 })).resolves.toEqual({
+      status: "not_in_round",
+    });
+
+    expect(db.calls.some((call) => call.sql.includes("UPDATE rounds"))).toBe(false);
+  });
 });
