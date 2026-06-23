@@ -2,6 +2,7 @@ import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
 import { getGameRepository } from "../game/runtime.js";
 import { sendCountdown } from "./E3T1.js";
+import { completeRandomElimination } from "./E4T1.js";
 
 const composer = new Composer<Ctx>();
 
@@ -39,6 +40,7 @@ composer.callbackQuery("start:round", async (ctx) => {
 
     await ctx.editMessageText(`Round started. Players joined: ${result.participantCount}.`);
     await sendCountdown(ctx, result.gifPack);
+    await completeRandomElimination(ctx, repository);
   } catch (err) {
     if (err instanceof Error && err.message.includes("DATABASE_URL")) {
       await ctx.editMessageText("Round storage is not configured. Set DATABASE_URL before starting rounds.");

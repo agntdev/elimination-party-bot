@@ -302,4 +302,44 @@ describe("PostgresGameRepository", () => {
 
     expect(db.calls.some((call) => call.sql.includes("SELECT id, join_list"))).toBe(false);
   });
+
+  it("completes a countdown round by eliminating a random joined player", async () => {
+    const db = new ScriptedDb([[{ id: "round-1", join_list: [42, 77, 99] }], []]);
+    const repository = new PostgresGameRepository(db, (max) => {
+      expect(max).toBe(3);
+      return 1;
+    });
+
+    await expect(repository.eliminateRandomPlayer({ groupId: -1001 })).resolves.toEqual({
+      status: "completed",
+      eliminatedUserId: 77,
+      participantCount: 3,
+    });
+
+    const update = db.calls.find((call) => call.sql.includes("SET state = 'complete'"));
+    expect(update?.params).toEqual(["round-1", 77]);
+  });
+
+  it("does not eliminate when there is no countdown round", async () => {
+    const db = new ScriptedDb([[]]);
+    const repository = new PostgresGameRepository(db, () => 0);
+
+    await expect(repository.eliminateRandomPlayer({ groupId: -1001 })).resolves.toEqual({
+      status: "no_countdown_round",
+    });
+
+    expect(db.calls.some((call) => call.sql.includes("SET state = 'complete'"))).toBe(false);
+  });
+
+  it("does not eliminate from an empty join list", async () => {
+    const db = new ScriptedDb([[{ id: "round-1", join_list: [] }]]);
+    const repository = new PostgresGameRepository(db, () => 0);
+
+    await expect(repository.eliminateRandomPlayer({ groupId: -1001 })).resolves.toEqual({
+      status: "not_enough_players",
+      participantCount: 0,
+    });
+
+    expect(db.calls.some((call) => call.sql.includes("SET state = 'complete'"))).toBe(false);
+  });
 });

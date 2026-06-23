@@ -1,3 +1,4 @@
+import { randomInt as cryptoRandomInt } from "node:crypto";
 import type { Queryable } from "../db/schema.js";
 
 export interface TelegramUserRef {
@@ -112,11 +113,30 @@ export type StartRoundResult =
       participantCount: number;
     };
 
+export interface EliminateRandomPlayerInput {
+  groupId: number;
+}
+
+export type EliminateRandomPlayerResult =
+  | {
+      status: "completed";
+      eliminatedUserId: number;
+      participantCount: number;
+    }
+  | {
+      status: "no_countdown_round";
+    }
+  | {
+      status: "not_enough_players";
+      participantCount: number;
+    };
+
 export interface GameRepository {
   joinRound(input: JoinRoundInput): Promise<JoinRoundResult>;
   leaveRound(input: LeaveRoundInput): Promise<LeaveRoundResult>;
   canStartRound(input: GroupUserInput): Promise<boolean>;
   startRound(input: GroupUserInput): Promise<StartRoundResult>;
+  eliminateRandomPlayer(input: EliminateRandomPlayerInput): Promise<EliminateRandomPlayerResult>;
   getBalance(input: BalanceInput): Promise<BalanceResult>;
   getLeaderboard(input: LeaderboardInput): Promise<LeaderboardResult>;
   setStake(input: SetStakeInput): Promise<SetStakeResult>;
@@ -174,7 +194,10 @@ function windowFields(row: RoundWindowRow | undefined): {
 }
 
 export class PostgresGameRepository implements GameRepository {
-  constructor(private readonly db: Queryable) {}
+  constructor(
+    private readonly db: Queryable,
+    private readonly randomInt: (max: number) => number = cryptoRandomInt,
+  ) {}
 
   async getLeaderboard(input: LeaderboardInput): Promise<LeaderboardResult> {
     const perPage = Math.max(1, Math.floor(input.perPage ?? 10));
@@ -341,6 +364,52 @@ export class PostgresGameRepository implements GameRepository {
 
       await this.db.query("COMMIT");
       return { status: "started", participantCount, gifPack: parseGifPack(group.rows[0]?.gif_pack) };
+    } catch (err) {
+      await this.db.query("ROLLBACK");
+      throw err;
+    }
+  }
+
+  async eliminateRandomPlayer(input: EliminateRandomPlayerInput): Promise<EliminateRandomPlayerResult> {
+    await this.db.query("BEGIN");
+    try {
+      const activeRound = await this.db.query<{ id: string; join_list: unknown }>(
+        `SELECT id, join_list
+         FROM rounds
+         WHERE group_id = $1 AND state = 'countdown'
+         ORDER BY started_at DESC NULLS LAST, created_at DESC
+         LIMIT 1
+         FOR UPDATE`,
+        [input.groupId],
+      );
+      const round = activeRound.rows[0];
+      if (!round) {
+        await this.db.query("COMMIT");
+        return { status: "no_countdown_round" };
+      }
+
+      const joinList = parseJoinList(round.join_list);
+      if (joinList.length < 1) {
+        await this.db.query("COMMIT");
+        return { status: "not_enough_players", participantCount: joinList.length };
+      }
+
+      const eliminatedUserId = joinList[this.randomInt(joinList.length)]!;
+      await this.db.query(
+        `UPDATE rounds
+         SET state = 'complete',
+             eliminated_user_id = $2,
+             finished_at = now()
+         WHERE id = $1 AND state = 'countdown'`,
+        [round.id, eliminatedUserId],
+      );
+
+      await this.db.query("COMMIT");
+      return {
+        status: "completed",
+        eliminatedUserId,
+        participantCount: joinList.length,
+      };
     } catch (err) {
       await this.db.query("ROLLBACK");
       throw err;
