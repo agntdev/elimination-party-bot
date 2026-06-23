@@ -1,0 +1,106 @@
+[
+  {
+    "name": "Two /startround attempts only start one round",
+    "steps": [
+      {
+        "send": { "callback": "e2e:seed" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": { "text": "E2E round fixture ready." }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "join:round", "userId": 101 },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Joined the round. Stake: 10 points. Players joined: 1."
+            }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "join:round", "userId": 202 },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Joined the round. Stake: 10 points. Players joined: 2. Join window: 30s."
+            }
+          }
+        ]
+      },
+      {
+        "send": { "text": "/startround", "userId": 101 },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": { "text": "Round started. Players joined: 2." }
+          },
+          {
+            "method": "sendAnimation",
+            "payload": {
+              "animation": "https://example.test/countdown-3.gif",
+              "caption": "3"
+            }
+          },
+          {
+            "method": "sendAnimation",
+            "payload": {
+              "animation": "https://example.test/countdown-2.gif",
+              "caption": "2"
+            }
+          },
+          {
+            "method": "sendAnimation",
+            "payload": {
+              "animation": "https://example.test/countdown-1.gif",
+              "caption": "1"
+            }
+          },
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Eliminated player: 202.\nPayouts: 101 +10."
+            }
+          }
+        ]
+      },
+      {
+        "send": { "text": "/startround", "userId": 202 },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": { "text": "No open round to start. Tap Join first." }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "e2e:start-count" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": { "text": "Started rounds: 1." }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "e2e:reset" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": { "text": "E2E round fixture cleared." }
+          }
+        ]
+      }
+    ]
+  }
+]

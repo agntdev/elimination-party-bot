@@ -29,12 +29,13 @@ interface FixturePlayer {
   balance: number;
 }
 
-class FullRoundFixtureRepository implements GameRepository {
+export class FullRoundFixtureRepository implements GameRepository {
   private readonly groupId = 1;
   private readonly stakeAmount = 10;
   private readonly players: FixturePlayer[] = [];
   private joinList: number[] = [];
   private state: "open" | "countdown" | "complete" = "open";
+  private startedRoundCount = 0;
 
   async joinRound(input: JoinRoundInput): Promise<JoinRoundResult> {
     const player = this.ensurePlayer(input);
@@ -76,10 +77,12 @@ class FullRoundFixtureRepository implements GameRepository {
 
   async startRound(input: GroupUserInput): Promise<StartRoundResult> {
     if (input.groupId !== this.groupId) return { status: "no_open_round" };
+    if (this.state !== "open") return { status: "no_open_round" };
     if (this.joinList.length < 2) {
       return { status: "not_enough_players", participantCount: this.joinList.length };
     }
     this.state = "countdown";
+    this.startedRoundCount += 1;
     return {
       status: "started",
       participantCount: this.joinList.length,
@@ -177,6 +180,16 @@ class FullRoundFixtureRepository implements GameRepository {
       balance: 500,
     };
   }
+
+  getStartedRoundCount(): number {
+    return this.startedRoundCount;
+  }
+}
+
+let activeFixtureRepository: FullRoundFixtureRepository | undefined;
+
+export function activeE2EStartedRoundCount(): number | undefined {
+  return activeFixtureRepository?.getStartedRoundCount();
 }
 
 function harnessSpecsAreRunning(): boolean {
@@ -186,13 +199,15 @@ function harnessSpecsAreRunning(): boolean {
 if (harnessSpecsAreRunning()) {
   composer.callbackQuery("e2e:seed", async (ctx) => {
     await ctx.answerCallbackQuery();
-    setGameRepositoryForTests(new FullRoundFixtureRepository());
+    activeFixtureRepository = new FullRoundFixtureRepository();
+    setGameRepositoryForTests(activeFixtureRepository);
     setCountdownDelayForTests(async () => {});
     await ctx.editMessageText("E2E round fixture ready.");
   });
 
   composer.callbackQuery("e2e:reset", async (ctx) => {
     await ctx.answerCallbackQuery();
+    activeFixtureRepository = undefined;
     setGameRepositoryForTests(undefined);
     resetCountdownDelayForTests();
     await ctx.editMessageText("E2E round fixture cleared.");
