@@ -3,6 +3,7 @@ import type { Ctx } from "../bot.js";
 import { getGameRepository, isGameStorageConfigError } from "../game/runtime.js";
 import { storeRoundSession } from "../game/round-session.js";
 import { insufficientBalanceReplyMarkup } from "./E6T1.js";
+import { USERNAME_REQUIRED_TEXT } from "./E8T3.js";
 
 const composer = new Composer<Ctx>();
 
@@ -25,6 +26,12 @@ composer.callbackQuery("join:round", async (ctx) => {
 
   try {
     const repository = await getGameRepository();
+
+    if (!ctx.from.username) {
+      await ctx.editMessageText(USERNAME_REQUIRED_TEXT);
+      return;
+    }
+
     const result = await repository.joinRound({
       groupId: ctx.chat.id,
       groupName: groupName(ctx),
