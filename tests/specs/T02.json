@@ -16,7 +16,7 @@
               "reply_markup": {
                 "inline_keyboard": [
                   [
-                    { "text": "Join round", "callback_data": "join:round" },
+                    { "text": "Join", "callback_data": "join:round" },
                     { "text": "Leave round", "callback_data": "leave:round" }
                   ],
                   [

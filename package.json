@@ -10,7 +10,8 @@
   },
   "dependencies": {
     "grammy": "^1.30.0",
-    "ioredis": "^5.4.1"
+    "ioredis": "^5.4.1",
+    "pg": "^8.22.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

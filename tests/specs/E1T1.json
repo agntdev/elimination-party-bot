@@ -1,0 +1,19 @@
+[
+  {
+    "name": "Join button reports missing persistent storage",
+    "steps": [
+      {
+        "send": { "callback": "join:round" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Round storage is not configured. Set DATABASE_URL before joining rounds."
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

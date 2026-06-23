@@ -1,5 +1,8 @@
 export interface Queryable {
-  query(sql: string): Promise<unknown>;
+  query<Row extends Record<string, unknown> = Record<string, unknown>>(
+    sql: string,
+    params?: readonly unknown[],
+  ): Promise<{ rows: Row[] }>;
 }
 
 export const schemaStatements = [
