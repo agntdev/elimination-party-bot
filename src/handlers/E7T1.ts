@@ -23,9 +23,8 @@ import { resetCountdownDelayForTests, setCountdownDelayForTests } from "./E3T1.j
 const composer = new Composer<Ctx>();
 
 interface FixturePlayer {
-  userId: number;
+  username: string;
   displayName: string;
-  username?: string;
   balance: number;
 }
 
@@ -33,17 +32,18 @@ export class FullRoundFixtureRepository implements GameRepository {
   private readonly groupId = 1;
   private readonly stakeAmount = 10;
   private readonly players: FixturePlayer[] = [];
-  private joinList: number[] = [];
+  private joinList: string[] = [];
   private state: "open" | "countdown" | "complete" = "open";
   private startedRoundCount = 0;
 
   async joinRound(input: JoinRoundInput): Promise<JoinRoundResult> {
+    const key = this.usernameKey(input.user);
     const player = this.ensurePlayer(input);
     if (player.balance < this.stakeAmount) {
       return { status: "insufficient_balance", balance: player.balance, stakeAmount: this.stakeAmount };
     }
 
-    if (this.joinList.includes(input.user.id)) {
+    if (this.joinList.includes(key)) {
       return {
         status: "already_joined",
         balance: player.balance,
@@ -53,7 +53,7 @@ export class FullRoundFixtureRepository implements GameRepository {
       };
     }
 
-    this.joinList.push(input.user.id);
+    this.joinList.push(key);
     return {
       status: "joined",
       balance: player.balance,
@@ -66,8 +66,8 @@ export class FullRoundFixtureRepository implements GameRepository {
   }
 
   async leaveRound(input: LeaveRoundInput): Promise<LeaveRoundResult> {
-    if (!this.joinList.includes(input.userId)) return { status: "not_in_round" };
-    this.joinList = this.joinList.filter((userId) => userId !== input.userId);
+    if (!this.joinList.includes(input.username)) return { status: "not_in_round" };
+    this.joinList = this.joinList.filter((username) => username !== input.username);
     return { status: "left", participantCount: this.joinList.length };
   }
 
@@ -102,24 +102,24 @@ export class FullRoundFixtureRepository implements GameRepository {
       return { status: "not_enough_players", participantCount: this.joinList.length };
     }
 
-    const eliminatedUserId = this.joinList[1]!;
-    const survivors = this.joinList.filter((userId) => userId !== eliminatedUserId);
+    const eliminatedUsername = this.joinList[1]!;
+    const survivors = this.joinList.filter((username) => username !== eliminatedUsername);
     const baseAmount = Math.floor(this.stakeAmount / survivors.length);
     const remainder = this.stakeAmount % survivors.length;
-    const payouts = survivors.map((userId, index) => ({
-      userId,
+    const payouts = survivors.map((username, index) => ({
+      username,
       amount: baseAmount + (index < remainder ? 1 : 0),
     }));
 
-    this.findPlayer(eliminatedUserId).balance -= this.stakeAmount;
+    this.findPlayer(eliminatedUsername).balance -= this.stakeAmount;
     for (const payout of payouts) {
-      this.findPlayer(payout.userId).balance += payout.amount;
+      this.findPlayer(payout.username).balance += payout.amount;
     }
     this.state = "complete";
 
     return {
       status: "completed",
-      eliminatedUserId,
+      eliminatedUsername,
       participantCount: this.joinList.length,
       stakeAmount: this.stakeAmount,
       payouts,
@@ -127,10 +127,11 @@ export class FullRoundFixtureRepository implements GameRepository {
   }
 
   async getBalance(input: BalanceInput): Promise<BalanceResult> {
-    const player = this.findPlayer(input.user.id);
+    const key = this.usernameKey(input.user);
+    const player = this.findPlayer(key);
     return {
       balance: player.balance,
-      inCurrentRound: this.joinList.includes(input.user.id) && this.state !== "complete",
+      inCurrentRound: this.joinList.includes(key) && this.state !== "complete",
     };
   }
 
@@ -138,12 +139,11 @@ export class FullRoundFixtureRepository implements GameRepository {
     const perPage = input.perPage ?? 10;
     const page = input.page;
     const entries = [...this.players]
-      .sort((a, b) => b.balance - a.balance || a.userId - b.userId)
+      .sort((a, b) => b.balance - a.balance || a.username.localeCompare(b.username))
       .slice(page * perPage, page * perPage + perPage + 1)
       .map((player) => ({
-        userId: player.userId,
-        displayName: player.displayName,
         username: player.username,
+        displayName: player.displayName,
         balance: player.balance,
       }));
 
@@ -160,23 +160,27 @@ export class FullRoundFixtureRepository implements GameRepository {
     return { status: "updated", stakeAmount: this.stakeAmount };
   }
 
+  private usernameKey(user: { id: number; username?: string }): string {
+    return user.username ?? String(user.id);
+  }
+
   private ensurePlayer(input: JoinRoundInput): FixturePlayer {
-    const existing = this.players.find((player) => player.userId === input.user.id);
+    const key = this.usernameKey(input.user);
+    const existing = this.players.find((player) => player.username === key);
     if (existing) return existing;
     const player: FixturePlayer = {
-      userId: input.user.id,
+      username: key,
       displayName: `Player ${input.user.id}`,
-      username: input.user.username,
       balance: 500,
     };
     this.players.push(player);
     return player;
   }
 
-  private findPlayer(userId: number): FixturePlayer {
-    return this.players.find((player) => player.userId === userId) ?? {
-      userId,
-      displayName: `Player ${userId}`,
+  private findPlayer(username: string): FixturePlayer {
+    return this.players.find((player) => player.username === username) ?? {
+      username,
+      displayName: `Player ${username}`,
       balance: 500,
     };
   }

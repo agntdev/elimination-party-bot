@@ -14,7 +14,7 @@ async function canShowStartNow(ctx: Ctx): Promise<boolean> {
   if (!ctx.chat || !ctx.from) return false;
   try {
     const repository = await getGameRepository();
-    return repository.canStartRound({ groupId: ctx.chat.id, userId: ctx.from.id });
+    return repository.canStartRound({ groupId: ctx.chat.id, username: ctx.from.username ?? String(ctx.from.id) });
   } catch (err) {
     if (isGameStorageConfigError(err)) return false;
     throw err;
