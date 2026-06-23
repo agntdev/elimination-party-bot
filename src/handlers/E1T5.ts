@@ -1,6 +1,6 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
-import { getGameRepository } from "../game/runtime.js";
+import { getGameRepository, isGameStorageConfigError } from "../game/runtime.js";
 import { inlineButton, inlineKeyboard, type InlineButton } from "../toolkit/ui/keyboard.js";
 import type { LeaderboardResult } from "../game/repository.js";
 
@@ -46,8 +46,8 @@ async function loadLeaderboard(ctx: Ctx, page: number): Promise<LeaderboardResul
 }
 
 function storageErrorText(err: unknown): string | undefined {
-  if (err instanceof Error && err.message.includes("DATABASE_URL")) {
-    return "Leaderboard storage is not configured. Set DATABASE_URL before viewing standings.";
+  if (isGameStorageConfigError(err)) {
+    return "Leaderboard storage is not configured. Set REDIS_URL before viewing standings.";
   }
   return undefined;
 }

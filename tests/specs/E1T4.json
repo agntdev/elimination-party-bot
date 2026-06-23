@@ -8,7 +8,7 @@
           {
             "method": "sendMessage",
             "payload": {
-              "text": "Balance storage is not configured. Set DATABASE_URL before checking balance."
+              "text": "Balance storage is not configured. Set REDIS_URL before checking balance."
             }
           }
         ]
@@ -25,7 +25,7 @@
           {
             "method": "editMessageText",
             "payload": {
-              "text": "Balance storage is not configured. Set DATABASE_URL before checking balance."
+              "text": "Balance storage is not configured. Set REDIS_URL before checking balance."
             }
           }
         ]

@@ -1,6 +1,6 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
-import { getGameRepository } from "../game/runtime.js";
+import { getGameRepository, isGameStorageConfigError } from "../game/runtime.js";
 
 const composer = new Composer<Ctx>();
 const USAGE_TEXT = "Usage: /setstake <amount>. Amount must be at least 1.";
@@ -19,8 +19,8 @@ function parseStakeAmount(match: unknown): number | undefined {
 }
 
 function storageErrorText(err: unknown): string | undefined {
-  if (err instanceof Error && err.message.includes("DATABASE_URL")) {
-    return "Stake storage is not configured. Set DATABASE_URL before setting stakes.";
+  if (isGameStorageConfigError(err)) {
+    return "Stake storage is not configured. Set REDIS_URL before setting stakes.";
   }
   return undefined;
 }

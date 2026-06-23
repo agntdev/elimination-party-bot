@@ -24,7 +24,7 @@
           {
             "method": "sendMessage",
             "payload": {
-              "text": "Stake storage is not configured. Set DATABASE_URL before setting stakes."
+              "text": "Stake storage is not configured. Set REDIS_URL before setting stakes."
             }
           }
         ]

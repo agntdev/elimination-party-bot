@@ -1,6 +1,6 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
-import { getGameRepository } from "../game/runtime.js";
+import { getGameRepository, isGameStorageConfigError } from "../game/runtime.js";
 import { storeRoundSession } from "../game/round-session.js";
 import { inlineButton, inlineKeyboard } from "../toolkit/ui/keyboard.js";
 
@@ -65,8 +65,8 @@ composer.command("join", async (ctx) => {
       `Joined the round. Stake: ${result.stakeAmount} points. Players joined: ${result.participantCount}.${joinWindow}`,
     );
   } catch (err) {
-    if (err instanceof Error && err.message.includes("DATABASE_URL")) {
-      await ctx.reply("Round storage is not configured. Set DATABASE_URL before joining rounds.");
+    if (isGameStorageConfigError(err)) {
+      await ctx.reply("Round storage is not configured. Set REDIS_URL before joining rounds.");
       return;
     }
     throw err;

@@ -8,7 +8,7 @@
           {
             "method": "sendMessage",
             "payload": {
-              "text": "Round storage is not configured. Set DATABASE_URL before joining rounds."
+              "text": "Round storage is not configured. Set REDIS_URL before joining rounds."
             }
           }
         ]

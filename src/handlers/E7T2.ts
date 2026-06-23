@@ -1,6 +1,6 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
-import { getGameRepository } from "../game/runtime.js";
+import { getGameRepository, isGameStorageConfigError } from "../game/runtime.js";
 import { sendCountdown } from "./E3T1.js";
 import { completeRandomElimination } from "./E4T1.js";
 import { activeE2EStartedRoundCount } from "./E7T1.js";
@@ -46,8 +46,8 @@ composer.command("startround", async (ctx) => {
     await sendCountdown(ctx, result.gifPack);
     await completeRandomElimination(ctx, repository);
   } catch (err) {
-    if (err instanceof Error && err.message.includes("DATABASE_URL")) {
-      await ctx.reply("Round storage is not configured. Set DATABASE_URL before starting rounds.");
+    if (isGameStorageConfigError(err)) {
+      await ctx.reply("Round storage is not configured. Set REDIS_URL before starting rounds.");
       return;
     }
     throw err;

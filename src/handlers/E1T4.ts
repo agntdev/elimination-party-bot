@@ -1,6 +1,6 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
-import { getGameRepository } from "../game/runtime.js";
+import { getGameRepository, isGameStorageConfigError } from "../game/runtime.js";
 
 const composer = new Composer<Ctx>();
 
@@ -37,8 +37,8 @@ async function loadBalanceText(ctx: Ctx): Promise<string> {
 }
 
 async function storageErrorText(err: unknown): Promise<string | undefined> {
-  if (err instanceof Error && err.message.includes("DATABASE_URL")) {
-    return "Balance storage is not configured. Set DATABASE_URL before checking balance.";
+  if (isGameStorageConfigError(err)) {
+    return "Balance storage is not configured. Set REDIS_URL before checking balance.";
   }
   return undefined;
 }

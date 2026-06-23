@@ -1,6 +1,6 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
-import { getGameRepository } from "../game/runtime.js";
+import { getGameRepository, isGameStorageConfigError } from "../game/runtime.js";
 import {
   inlineButton,
   inlineKeyboard,
@@ -16,7 +16,7 @@ async function canShowStartNow(ctx: Ctx): Promise<boolean> {
     const repository = await getGameRepository();
     return repository.canStartRound({ groupId: ctx.chat.id, userId: ctx.from.id });
   } catch (err) {
-    if (err instanceof Error && err.message.includes("DATABASE_URL")) return false;
+    if (isGameStorageConfigError(err)) return false;
     throw err;
   }
 }

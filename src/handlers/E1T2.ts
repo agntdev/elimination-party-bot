@@ -1,6 +1,6 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
-import { getGameRepository } from "../game/runtime.js";
+import { getGameRepository, isGameStorageConfigError } from "../game/runtime.js";
 
 const composer = new Composer<Ctx>();
 
@@ -26,8 +26,8 @@ composer.callbackQuery("leave:round", async (ctx) => {
 
     await ctx.editMessageText(`You left the round. Players joined: ${result.participantCount}.`);
   } catch (err) {
-    if (err instanceof Error && err.message.includes("DATABASE_URL")) {
-      await ctx.editMessageText("Round storage is not configured. Set DATABASE_URL before leaving rounds.");
+    if (isGameStorageConfigError(err)) {
+      await ctx.editMessageText("Round storage is not configured. Set REDIS_URL before leaving rounds.");
       return;
     }
     throw err;
