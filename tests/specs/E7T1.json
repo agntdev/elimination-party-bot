@@ -1,0 +1,111 @@
+[
+  {
+    "name": "Full 3-player round flow updates leaderboard",
+    "steps": [
+      {
+        "send": { "callback": "e2e:seed" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": { "text": "E2E round fixture ready." }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "join:round", "userId": 101 },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Joined the round. Stake: 10 points. Players joined: 1."
+            }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "join:round", "userId": 202 },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Joined the round. Stake: 10 points. Players joined: 2. Join window: 30s."
+            }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "join:round", "userId": 303 },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Joined the round. Stake: 10 points. Players joined: 3."
+            }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "start:round", "userId": 101 },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": { "text": "Round started. Players joined: 3." }
+          },
+          {
+            "method": "sendAnimation",
+            "payload": {
+              "animation": "https://example.test/countdown-3.gif",
+              "caption": "3"
+            }
+          },
+          {
+            "method": "sendAnimation",
+            "payload": {
+              "animation": "https://example.test/countdown-2.gif",
+              "caption": "2"
+            }
+          },
+          {
+            "method": "sendAnimation",
+            "payload": {
+              "animation": "https://example.test/countdown-1.gif",
+              "caption": "1"
+            }
+          },
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Eliminated player: 202.\nPayouts: 101 +5, 303 +5."
+            }
+          }
+        ]
+      },
+      {
+        "send": { "text": "/leaderboard" },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Leaderboard - page 1\n1. Player 101 - 505 points\n2. Player 303 - 505 points\n3. Player 202 - 490 points"
+            }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "e2e:reset" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": { "text": "E2E round fixture cleared." }
+          }
+        ]
+      }
+    ]
+  }
+]
