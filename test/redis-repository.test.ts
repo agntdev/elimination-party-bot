@@ -58,7 +58,9 @@ describe("RedisGameRepository", () => {
     });
 
     expect(redis.store.has("game:group:-1001")).toBe(true);
+    expect(redis.store.has("game:global")).toBe(true);
     expect(redis.store.has("game:lock:-1001")).toBe(false);
+    expect(redis.store.has("game:lock:global")).toBe(false);
   });
 
   it("keeps a player from joining the same open round twice", async () => {
@@ -110,8 +112,9 @@ describe("RedisGameRepository", () => {
 
   it("returns leaderboard entries with pagination state", async () => {
     const repository = new RedisGameRepository(new FakeRedis());
+    const otherGroupId = -2002;
 
-    await repository.joinRound({ groupId, user: user(3, "Cam") });
+    await repository.joinRound({ groupId: otherGroupId, user: user(3, "Cam") });
     await repository.joinRound({ groupId, user: user(1, "Ada") });
     await repository.joinRound({ groupId, user: user(2, "Ben") });
 
@@ -131,6 +134,39 @@ describe("RedisGameRepository", () => {
       page: 1,
       hasPrevious: true,
       hasNext: false,
+    });
+  });
+
+  it("keeps balances global while current-round membership stays per chat", async () => {
+    const otherGroupId = -2002;
+    const repository = new RedisGameRepository(new FakeRedis(), { randomInt: () => 1 });
+
+    await repository.joinRound({ groupId, user: user(42, "Ada") });
+    await repository.joinRound({ groupId, user: user(77, "Ben") });
+
+    await expect(repository.getBalance({ groupId: otherGroupId, user: user(77, "Ben") })).resolves.toEqual({
+      balance: 500,
+      inCurrentRound: false,
+    });
+
+    await repository.startRound({ groupId, userId: 42 });
+    await repository.eliminateRandomPlayer({ groupId });
+
+    await expect(repository.getBalance({ groupId: otherGroupId, user: user(77, "Ben") })).resolves.toEqual({
+      balance: 490,
+      inCurrentRound: false,
+    });
+
+    await expect(repository.joinRound({ groupId: otherGroupId, user: user(77, "Ben") })).resolves.toMatchObject({
+      status: "joined",
+      balance: 490,
+      participantCount: 1,
+      joinList: [77],
+    });
+
+    await expect(repository.getBalance({ groupId: otherGroupId, user: user(77, "Ben") })).resolves.toEqual({
+      balance: 490,
+      inCurrentRound: true,
     });
   });
 

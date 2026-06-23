@@ -14,7 +14,7 @@ function groupName(ctx: Ctx): string | undefined {
 }
 
 function formatBalance(balance: number, inCurrentRound: boolean): string {
-  return `Balance: ${balance} points | In current round: ${inCurrentRound ? "Yes" : "No"}`;
+  return `Global balance: ${balance} points | In this chat's current round: ${inCurrentRound ? "Yes" : "No"}`;
 }
 
 async function loadBalanceText(ctx: Ctx): Promise<string> {

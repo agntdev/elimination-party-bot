@@ -52,6 +52,7 @@ interface RedisTransaction {
   userId: number;
   delta: number;
   reason: "stake_lost" | "share_won";
+  groupId?: number;
   relatedRoundId?: string;
   createdAt: string;
 }
@@ -69,6 +70,12 @@ interface RedisGroupState {
   createdAt: string;
 }
 
+interface RedisGlobalState {
+  players: Record<string, RedisPlayer>;
+  transactions: RedisTransaction[];
+  createdAt: string;
+}
+
 function parseGroup(value: string | null): RedisGroupState | undefined {
   if (!value) return undefined;
   const parsed = JSON.parse(value) as RedisGroupState;
@@ -80,6 +87,16 @@ function parseGroup(value: string | null): RedisGroupState | undefined {
     stakeAmount: Number(parsed.stakeAmount ?? 10),
     joinWindowSeconds: Number(parsed.joinWindowSeconds ?? 30),
     gifPack: parsed.gifPack ?? {},
+  };
+}
+
+function parseGlobal(value: string | null): RedisGlobalState | undefined {
+  if (!value) return undefined;
+  const parsed = JSON.parse(value) as RedisGlobalState;
+  return {
+    ...parsed,
+    players: parsed.players ?? {},
+    transactions: parsed.transactions ?? [],
   };
 }
 
@@ -109,13 +126,16 @@ export class RedisGameRepository implements GameRepository {
   ) {}
 
   async joinRound(input: JoinRoundInput): Promise<JoinRoundResult> {
-    return this.withGroupLock(input.groupId, async () => {
+    return this.withGameLock(async () => {
+      const global = await this.loadOrCreateGlobal();
       const group = await this.loadOrCreateGroup(input.groupId, input.user.id, input.groupName);
-      const player = this.ensurePlayer(group, input);
+      this.migrateLegacyPlayers(group, global);
+      const player = this.ensurePlayer(global, input);
       const stakeAmount = group.stakeAmount;
 
       if (player.balance < stakeAmount) {
         await this.saveGroup(group);
+        await this.saveGlobal(global);
         return { status: "insufficient_balance", balance: player.balance, stakeAmount };
       }
 
@@ -133,6 +153,7 @@ export class RedisGameRepository implements GameRepository {
 
       if (round.joinList.includes(input.user.id)) {
         await this.saveGroup(group);
+        await this.saveGlobal(global);
         return {
           status: "already_joined",
           balance: player.balance,
@@ -154,6 +175,7 @@ export class RedisGameRepository implements GameRepository {
       }
 
       await this.saveGroup(group);
+      await this.saveGlobal(global);
       return {
         status: "joined",
         balance: player.balance,
@@ -169,7 +191,7 @@ export class RedisGameRepository implements GameRepository {
   }
 
   async leaveRound(input: LeaveRoundInput): Promise<LeaveRoundResult> {
-    return this.withGroupLock(input.groupId, async () => {
+    return this.withGameLock(async () => {
       const group = await this.loadGroup(input.groupId);
       const round = group ? latestRound(group.rounds, "open") : undefined;
       if (!group || !round || !round.joinList.includes(input.userId)) {
@@ -188,7 +210,7 @@ export class RedisGameRepository implements GameRepository {
   }
 
   async startRound(input: GroupUserInput): Promise<StartRoundResult> {
-    return this.withGroupLock(input.groupId, async () => {
+    return this.withGameLock(async () => {
       const group = await this.loadGroup(input.groupId);
       if (!group) return { status: "no_open_round" };
       if (group.creatorId !== input.userId) return { status: "not_creator" };
@@ -211,7 +233,7 @@ export class RedisGameRepository implements GameRepository {
   }
 
   async eliminateRandomPlayer(input: EliminateRandomPlayerInput): Promise<EliminateRandomPlayerResult> {
-    return this.withGroupLock(input.groupId, async () => {
+    return this.withGameLock(async () => {
       const group = await this.loadGroup(input.groupId);
       const round = group ? latestRound(group.rounds, "countdown") : undefined;
       if (!group || !round) return { status: "no_countdown_round" };
@@ -219,33 +241,37 @@ export class RedisGameRepository implements GameRepository {
         return { status: "not_enough_players", participantCount: round.joinList.length };
       }
 
+      const global = await this.loadOrCreateGlobal();
+      this.migrateLegacyPlayers(group, global);
       const eliminatedUserId = round.joinList[this.randomInt(round.joinList.length)]!;
       const payouts = calculateStakePayouts(round.joinList, eliminatedUserId, round.stake);
-      const eliminated = group.players[String(eliminatedUserId)];
+      const eliminated = global.players[String(eliminatedUserId)];
       if (eliminated) {
         eliminated.balance -= round.stake;
         eliminated.lastSeen = this.nowIso();
       }
-      group.transactions.push({
+      global.transactions.push({
         id: randomUUID(),
         userId: eliminatedUserId,
         delta: -round.stake,
         reason: "stake_lost",
+        groupId: input.groupId,
         relatedRoundId: round.id,
         createdAt: this.nowIso(),
       });
 
       for (const payout of payouts) {
-        const player = group.players[String(payout.userId)];
+        const player = global.players[String(payout.userId)];
         if (player) {
           player.balance += payout.amount;
           player.lastSeen = this.nowIso();
         }
-        group.transactions.push({
+        global.transactions.push({
           id: randomUUID(),
           userId: payout.userId,
           delta: payout.amount,
           reason: "share_won",
+          groupId: input.groupId,
           relatedRoundId: round.id,
           createdAt: this.nowIso(),
         });
@@ -255,6 +281,7 @@ export class RedisGameRepository implements GameRepository {
       round.eliminatedUserId = eliminatedUserId;
       round.finishedAt = this.nowIso();
       await this.saveGroup(group);
+      await this.saveGlobal(global);
       return {
         status: "completed",
         eliminatedUserId,
@@ -266,11 +293,14 @@ export class RedisGameRepository implements GameRepository {
   }
 
   async getBalance(input: BalanceInput): Promise<BalanceResult> {
-    return this.withGroupLock(input.groupId, async () => {
+    return this.withGameLock(async () => {
+      const global = await this.loadOrCreateGlobal();
       const group = await this.loadOrCreateGroup(input.groupId, input.user.id, input.groupName);
-      const player = this.ensurePlayer(group, input);
+      this.migrateLegacyPlayers(group, global);
+      const player = this.ensurePlayer(global, input);
       const round = latestRound(group.rounds, "open");
       await this.saveGroup(group);
+      await this.saveGlobal(global);
       return {
         balance: player.balance,
         inCurrentRound: Boolean(round?.joinList.includes(input.user.id)),
@@ -279,26 +309,35 @@ export class RedisGameRepository implements GameRepository {
   }
 
   async getLeaderboard(input: LeaderboardInput): Promise<LeaderboardResult> {
-    const perPage = Math.max(1, Math.floor(input.perPage ?? 10));
-    const page = Math.max(0, Math.floor(input.page));
-    const group = await this.loadGroup(input.groupId);
-    const entries = Object.values(group?.players ?? {})
-      .sort((a, b) => b.balance - a.balance || a.displayName.localeCompare(b.displayName) || a.userId - b.userId)
-      .slice(page * perPage, page * perPage + perPage + 1)
-      .map((player) => ({
-        userId: player.userId,
-        displayName: player.displayName,
-        username: player.username,
-        balance: player.balance,
-      }));
+    return this.withGameLock(async () => {
+      const perPage = Math.max(1, Math.floor(input.perPage ?? 10));
+      const page = Math.max(0, Math.floor(input.page));
+      const group = await this.loadGroup(input.groupId);
+      const global = await this.loadOrCreateGlobal();
+      if (group) {
+        this.migrateLegacyPlayers(group, global);
+        await this.saveGroup(group);
+      }
+      await this.saveGlobal(global);
 
-    return {
-      entries: entries.slice(0, perPage),
-      page,
-      perPage,
-      hasPrevious: page > 0,
-      hasNext: entries.length > perPage,
-    };
+      const entries = Object.values(global.players)
+        .sort((a, b) => b.balance - a.balance || a.displayName.localeCompare(b.displayName) || a.userId - b.userId)
+        .slice(page * perPage, page * perPage + perPage + 1)
+        .map((player) => ({
+          userId: player.userId,
+          displayName: player.displayName,
+          username: player.username,
+          balance: player.balance,
+        }));
+
+      return {
+        entries: entries.slice(0, perPage),
+        page,
+        perPage,
+        hasPrevious: page > 0,
+        hasNext: entries.length > perPage,
+      };
+    });
   }
 
   async setStake(input: SetStakeInput): Promise<SetStakeResult> {
@@ -306,7 +345,7 @@ export class RedisGameRepository implements GameRepository {
       throw new Error("stake amount must be an integer greater than or equal to 1");
     }
 
-    return this.withGroupLock(input.groupId, async () => {
+    return this.withGameLock(async () => {
       const group = await this.loadOrCreateGroup(input.groupId, input.userId, input.groupName);
       if (group.creatorId !== input.userId) return { status: "not_creator" };
       group.stakeAmount = input.amount;
@@ -315,8 +354,8 @@ export class RedisGameRepository implements GameRepository {
     });
   }
 
-  private async withGroupLock<T>(groupId: number, fn: () => Promise<T>): Promise<T> {
-    const lockKey = this.lockKey(groupId);
+  private async withGameLock<T>(fn: () => Promise<T>): Promise<T> {
+    const lockKey = this.globalLockKey();
     const token = randomUUID();
     const attempts = 50;
     for (let i = 0; i < attempts; i++) {
@@ -337,6 +376,20 @@ export class RedisGameRepository implements GameRepository {
 
   private async loadGroup(groupId: number): Promise<RedisGroupState | undefined> {
     return parseGroup(await this.redis.get(this.groupKey(groupId)));
+  }
+
+  private async loadGlobal(): Promise<RedisGlobalState | undefined> {
+    return parseGlobal(await this.redis.get(this.globalKey()));
+  }
+
+  private async loadOrCreateGlobal(): Promise<RedisGlobalState> {
+    return (
+      (await this.loadGlobal()) ?? {
+        players: {},
+        transactions: [],
+        createdAt: this.nowIso(),
+      }
+    );
   }
 
   private async loadOrCreateGroup(
@@ -364,9 +417,9 @@ export class RedisGameRepository implements GameRepository {
     };
   }
 
-  private ensurePlayer(group: RedisGroupState, input: JoinRoundInput): RedisPlayer {
+  private ensurePlayer(global: RedisGlobalState, input: JoinRoundInput): RedisPlayer {
     const key = String(input.user.id);
-    const existing = group.players[key];
+    const existing = global.players[key];
     if (existing) {
       existing.username = input.user.username;
       existing.displayName = input.user.displayName;
@@ -382,20 +435,36 @@ export class RedisGameRepository implements GameRepository {
       firstSeen: this.nowIso(),
       lastSeen: this.nowIso(),
     };
-    group.players[key] = player;
+    global.players[key] = player;
     return player;
+  }
+
+  private migrateLegacyPlayers(group: RedisGroupState, global: RedisGlobalState): void {
+    for (const [key, player] of Object.entries(group.players)) {
+      if (!global.players[key]) {
+        global.players[key] = { ...player };
+      }
+    }
   }
 
   private async saveGroup(group: RedisGroupState): Promise<void> {
     await this.redis.set(this.groupKey(group.id), JSON.stringify(group));
   }
 
+  private async saveGlobal(global: RedisGlobalState): Promise<void> {
+    await this.redis.set(this.globalKey(), JSON.stringify(global));
+  }
+
   private groupKey(groupId: number): string {
     return `${this.prefix}:group:${groupId}`;
   }
 
-  private lockKey(groupId: number): string {
-    return `${this.prefix}:lock:${groupId}`;
+  private globalKey(): string {
+    return `${this.prefix}:global`;
+  }
+
+  private globalLockKey(): string {
+    return `${this.prefix}:lock:global`;
   }
 
   private get prefix(): string {

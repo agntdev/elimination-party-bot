@@ -91,7 +91,7 @@
           {
             "method": "sendMessage",
             "payload": {
-              "text": "Leaderboard - page 1\n1. Player 101 - 505 points\n2. Player 303 - 505 points\n3. Player 202 - 490 points"
+              "text": "Global leaderboard - page 1\n1. Player 101 - 505 points\n2. Player 303 - 505 points\n3. Player 202 - 490 points"
             }
           }
         ]
