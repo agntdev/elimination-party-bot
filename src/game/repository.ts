@@ -29,6 +29,27 @@ export interface GroupUserInput {
   userId: number;
 }
 
+export interface LeaderboardInput {
+  groupId: number;
+  page: number;
+  perPage?: number;
+}
+
+export interface LeaderboardEntry {
+  userId: number;
+  displayName: string;
+  username?: string;
+  balance: number;
+}
+
+export interface LeaderboardResult {
+  entries: LeaderboardEntry[];
+  page: number;
+  perPage: number;
+  hasPrevious: boolean;
+  hasNext: boolean;
+}
+
 export type JoinRoundResult =
   | {
       status: "joined" | "already_joined";
@@ -73,6 +94,7 @@ export interface GameRepository {
   canStartRound(input: GroupUserInput): Promise<boolean>;
   startRound(input: GroupUserInput): Promise<StartRoundResult>;
   getBalance(input: BalanceInput): Promise<BalanceResult>;
+  getLeaderboard(input: LeaderboardInput): Promise<LeaderboardResult>;
 }
 
 function parseJoinList(value: unknown): number[] {
@@ -86,6 +108,37 @@ function parseJoinList(value: unknown): number[] {
 
 export class PostgresGameRepository implements GameRepository {
   constructor(private readonly db: Queryable) {}
+
+  async getLeaderboard(input: LeaderboardInput): Promise<LeaderboardResult> {
+    const perPage = Math.max(1, Math.floor(input.perPage ?? 10));
+    const page = Math.max(0, Math.floor(input.page));
+    const rows = await this.db.query<{
+      user_id: number;
+      display_name: string;
+      username: string | null;
+      balance: number;
+    }>(
+      `SELECT user_id, display_name, username, balance
+       FROM players
+       WHERE group_id = $1
+       ORDER BY balance DESC, display_name ASC, user_id ASC
+       LIMIT $2 OFFSET $3`,
+      [input.groupId, perPage + 1, page * perPage],
+    );
+
+    return {
+      entries: rows.rows.slice(0, perPage).map((row) => ({
+        userId: Number(row.user_id),
+        displayName: row.display_name,
+        username: row.username ?? undefined,
+        balance: Number(row.balance),
+      })),
+      page,
+      perPage,
+      hasPrevious: page > 0,
+      hasNext: rows.rows.length > perPage,
+    };
+  }
 
   async getBalance(input: BalanceInput): Promise<BalanceResult> {
     const group = await this.db.query(

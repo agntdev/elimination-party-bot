@@ -1,0 +1,35 @@
+[
+  {
+    "name": "/leaderboard reports missing persistent storage",
+    "steps": [
+      {
+        "send": { "text": "/leaderboard" },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Leaderboard storage is not configured. Set DATABASE_URL before viewing standings."
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Leaderboard button reports missing persistent storage",
+    "steps": [
+      {
+        "send": { "callback": "menu:leaderboard" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Leaderboard storage is not configured. Set DATABASE_URL before viewing standings."
+            }
+          }
+        ]
+      }
+    ]
+  }
+]

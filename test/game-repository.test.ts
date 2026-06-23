@@ -23,6 +23,43 @@ const joinInput = {
 };
 
 describe("PostgresGameRepository", () => {
+  it("returns leaderboard entries sorted by balance with pagination state", async () => {
+    const db = new ScriptedDb([
+      [
+        { user_id: 1, display_name: "Ada", username: "ada", balance: 900 },
+        { user_id: 2, display_name: "Ben", username: null, balance: 800 },
+        { user_id: 3, display_name: "Cam", username: "cam", balance: 700 },
+      ],
+    ]);
+    const repository = new PostgresGameRepository(db);
+
+    await expect(repository.getLeaderboard({ groupId: -1001, page: 0, perPage: 2 })).resolves.toEqual({
+      entries: [
+        { userId: 1, displayName: "Ada", username: "ada", balance: 900 },
+        { userId: 2, displayName: "Ben", username: undefined, balance: 800 },
+      ],
+      page: 0,
+      perPage: 2,
+      hasPrevious: false,
+      hasNext: true,
+    });
+
+    expect(db.calls[0]?.params).toEqual([-1001, 3, 0]);
+  });
+
+  it("marks later leaderboard pages as having a previous page", async () => {
+    const db = new ScriptedDb([[{ user_id: 3, display_name: "Cam", username: null, balance: 700 }]]);
+    const repository = new PostgresGameRepository(db);
+
+    await expect(repository.getLeaderboard({ groupId: -1001, page: 1, perPage: 2 })).resolves.toMatchObject({
+      page: 1,
+      hasPrevious: true,
+      hasNext: false,
+    });
+
+    expect(db.calls[0]?.params).toEqual([-1001, 3, 2]);
+  });
+
   it("returns player balance and current-round membership", async () => {
     const db = new ScriptedDb([[{ id: -1001 }], [{ balance: 500 }], [{ join_list: [42, 77] }]]);
     const repository = new PostgresGameRepository(db);
