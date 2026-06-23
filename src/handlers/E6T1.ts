@@ -27,6 +27,12 @@ composer.command("join", async (ctx) => {
 
   try {
     const repository = await getGameRepository();
+
+    if (!ctx.from.username) {
+      await ctx.reply("You need a Telegram username to use this command. Set one in Telegram Settings.");
+      return;
+    }
+
     const result = await repository.joinRound({
       groupId: ctx.chat.id,
       groupName: groupName(ctx),
