@@ -265,7 +265,7 @@ describe("PostgresGameRepository", () => {
 
   it("starts an open round for the group creator when at least two players joined", async () => {
     const db = new ScriptedDb([
-      [{ creator_id: 42 }],
+      [{ creator_id: 42, gif_pack: { "3": "https://example.test/3.gif" } }],
       [{ id: "round-1", join_list: [42, 77] }],
       [],
     ]);
@@ -274,6 +274,7 @@ describe("PostgresGameRepository", () => {
     await expect(repository.startRound({ groupId: -1001, userId: 42 })).resolves.toEqual({
       status: "started",
       participantCount: 2,
+      gifPack: { "3": "https://example.test/3.gif" },
     });
 
     expect(db.calls.some((call) => call.sql.includes("SET state = 'countdown'"))).toBe(true);
