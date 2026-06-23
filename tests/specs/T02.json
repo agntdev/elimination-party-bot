@@ -20,9 +20,6 @@
                     { "text": "Leave", "callback_data": "leave:round" }
                   ],
                   [
-                    { "text": "Start now", "callback_data": "start:round" }
-                  ],
-                  [
                     { "text": "Balance", "callback_data": "menu:balance" },
                     { "text": "Leaderboard", "callback_data": "menu:leaderboard" }
                   ],

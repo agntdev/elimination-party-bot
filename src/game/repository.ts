@@ -17,6 +17,11 @@ export interface LeaveRoundInput {
   userId: number;
 }
 
+export interface GroupUserInput {
+  groupId: number;
+  userId: number;
+}
+
 export type JoinRoundResult =
   | {
       status: "joined" | "already_joined";
@@ -39,9 +44,27 @@ export type LeaveRoundResult =
       status: "not_in_round";
     };
 
+export type StartRoundResult =
+  | {
+      status: "started";
+      participantCount: number;
+    }
+  | {
+      status: "not_creator";
+    }
+  | {
+      status: "no_open_round";
+    }
+  | {
+      status: "not_enough_players";
+      participantCount: number;
+    };
+
 export interface GameRepository {
   joinRound(input: JoinRoundInput): Promise<JoinRoundResult>;
   leaveRound(input: LeaveRoundInput): Promise<LeaveRoundResult>;
+  canStartRound(input: GroupUserInput): Promise<boolean>;
+  startRound(input: GroupUserInput): Promise<StartRoundResult>;
 }
 
 function parseJoinList(value: unknown): number[] {
@@ -55,6 +78,70 @@ function parseJoinList(value: unknown): number[] {
 
 export class PostgresGameRepository implements GameRepository {
   constructor(private readonly db: Queryable) {}
+
+  async canStartRound(input: GroupUserInput): Promise<boolean> {
+    const group = await this.db.query<{ creator_id: number }>(
+      `SELECT creator_id
+       FROM groups
+       WHERE id = $1`,
+      [input.groupId],
+    );
+    const creatorId = group.rows[0]?.creator_id;
+    return creatorId === undefined || Number(creatorId) === input.userId;
+  }
+
+  async startRound(input: GroupUserInput): Promise<StartRoundResult> {
+    await this.db.query("BEGIN");
+    try {
+      const group = await this.db.query<{ creator_id: number }>(
+        `SELECT creator_id
+         FROM groups
+         WHERE id = $1
+         FOR UPDATE`,
+        [input.groupId],
+      );
+      const creatorId = group.rows[0]?.creator_id;
+      if (creatorId !== undefined && Number(creatorId) !== input.userId) {
+        await this.db.query("COMMIT");
+        return { status: "not_creator" };
+      }
+
+      const openRound = await this.db.query<{ id: string; join_list: unknown }>(
+        `SELECT id, join_list
+         FROM rounds
+         WHERE group_id = $1 AND state = 'open'
+         ORDER BY created_at DESC
+         LIMIT 1
+         FOR UPDATE`,
+        [input.groupId],
+      );
+      const round = openRound.rows[0];
+      if (!round) {
+        await this.db.query("COMMIT");
+        return { status: "no_open_round" };
+      }
+
+      const participantCount = parseJoinList(round.join_list).length;
+      if (participantCount < 2) {
+        await this.db.query("COMMIT");
+        return { status: "not_enough_players", participantCount };
+      }
+
+      await this.db.query(
+        `UPDATE rounds
+         SET state = 'countdown',
+             started_at = now()
+         WHERE id = $1 AND state = 'open'`,
+        [round.id],
+      );
+
+      await this.db.query("COMMIT");
+      return { status: "started", participantCount };
+    } catch (err) {
+      await this.db.query("ROLLBACK");
+      throw err;
+    }
+  }
 
   async leaveRound(input: LeaveRoundInput): Promise<LeaveRoundResult> {
     await this.db.query("BEGIN");

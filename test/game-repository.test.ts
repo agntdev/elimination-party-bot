@@ -104,4 +104,57 @@ describe("PostgresGameRepository", () => {
 
     expect(db.calls.some((call) => call.sql.includes("UPDATE rounds"))).toBe(false);
   });
+
+  it("allows the group creator to see Start Now", async () => {
+    const db = new ScriptedDb([[{ creator_id: 42 }]]);
+    const repository = new PostgresGameRepository(db);
+
+    await expect(repository.canStartRound({ groupId: -1001, userId: 42 })).resolves.toBe(true);
+  });
+
+  it("hides Start Now from non-creators", async () => {
+    const db = new ScriptedDb([[{ creator_id: 77 }]]);
+    const repository = new PostgresGameRepository(db);
+
+    await expect(repository.canStartRound({ groupId: -1001, userId: 42 })).resolves.toBe(false);
+  });
+
+  it("starts an open round for the group creator when at least two players joined", async () => {
+    const db = new ScriptedDb([
+      [{ creator_id: 42 }],
+      [{ id: "round-1", join_list: [42, 77] }],
+      [],
+    ]);
+    const repository = new PostgresGameRepository(db);
+
+    await expect(repository.startRound({ groupId: -1001, userId: 42 })).resolves.toEqual({
+      status: "started",
+      participantCount: 2,
+    });
+
+    expect(db.calls.some((call) => call.sql.includes("SET state = 'countdown'"))).toBe(true);
+  });
+
+  it("refuses to start a round with fewer than two players", async () => {
+    const db = new ScriptedDb([[{ creator_id: 42 }], [{ id: "round-1", join_list: [42] }]]);
+    const repository = new PostgresGameRepository(db);
+
+    await expect(repository.startRound({ groupId: -1001, userId: 42 })).resolves.toEqual({
+      status: "not_enough_players",
+      participantCount: 1,
+    });
+
+    expect(db.calls.some((call) => call.sql.includes("SET state = 'countdown'"))).toBe(false);
+  });
+
+  it("refuses to start a round for non-creators", async () => {
+    const db = new ScriptedDb([[{ creator_id: 77 }]]);
+    const repository = new PostgresGameRepository(db);
+
+    await expect(repository.startRound({ groupId: -1001, userId: 42 })).resolves.toEqual({
+      status: "not_creator",
+    });
+
+    expect(db.calls.some((call) => call.sql.includes("SELECT id, join_list"))).toBe(false);
+  });
 });

@@ -8,7 +8,7 @@
           {
             "method": "sendMessage",
             "payload": {
-              "text": "Elimination Party Bot help\n\nCommands:\n/start - Show the main menu\n/help - Show this help\n/balance - Show your points and round status\n/leaderboard - Show the group leaderboard\n/setstake <amount> - Set the group stake\n\nMain menu buttons:\nJoin - Enter the open round\nLeave - Leave before the countdown\nStart now - Begin once enough players have joined\nBalance - Open your current score\nLeaderboard - Open the group standings\nHelp - Open this guide\n\nRules: join a round, survive the elimination, and share the eliminated player's stake."
+              "text": "Elimination Party Bot help\n\nCommands:\n/start - Show the main menu\n/help - Show this help\n/balance - Show your points and round status\n/leaderboard - Show the group leaderboard\n/setstake <amount> - Set the group stake\n\nMain menu buttons:\nJoin - Enter the open round\nLeave - Leave before the countdown\nStart Now - Begin once enough players have joined\nBalance - Open your current score\nLeaderboard - Open the group standings\nHelp - Open this guide\n\nRules: join a round, survive the elimination, and share the eliminated player's stake."
             }
           }
         ]
@@ -25,7 +25,7 @@
           {
             "method": "editMessageText",
             "payload": {
-              "text": "Elimination Party Bot help\n\nCommands:\n/start - Show the main menu\n/help - Show this help\n/balance - Show your points and round status\n/leaderboard - Show the group leaderboard\n/setstake <amount> - Set the group stake\n\nMain menu buttons:\nJoin - Enter the open round\nLeave - Leave before the countdown\nStart now - Begin once enough players have joined\nBalance - Open your current score\nLeaderboard - Open the group standings\nHelp - Open this guide\n\nRules: join a round, survive the elimination, and share the eliminated player's stake."
+              "text": "Elimination Party Bot help\n\nCommands:\n/start - Show the main menu\n/help - Show this help\n/balance - Show your points and round status\n/leaderboard - Show the group leaderboard\n/setstake <amount> - Set the group stake\n\nMain menu buttons:\nJoin - Enter the open round\nLeave - Leave before the countdown\nStart Now - Begin once enough players have joined\nBalance - Open your current score\nLeaderboard - Open the group standings\nHelp - Open this guide\n\nRules: join a round, survive the elimination, and share the eliminated player's stake."
             }
           }
         ]
