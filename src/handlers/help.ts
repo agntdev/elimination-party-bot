@@ -14,7 +14,7 @@ const HELP_TEXT = [
   "Main menu buttons:",
   "Join - Enter the open round",
   "Leave - Leave before the countdown",
-  "Start now - Begin once enough players have joined",
+  "Start Now - Begin once enough players have joined",
   "Balance - Open your current score",
   "Leaderboard - Open the group standings",
   "Help - Open this guide",

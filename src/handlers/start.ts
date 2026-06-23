@@ -1,15 +1,42 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
-import { inlineButton, inlineKeyboard } from "../toolkit/ui/keyboard.js";
+import { getGameRepository } from "../game/runtime.js";
+import {
+  inlineButton,
+  inlineKeyboard,
+  type InlineButton,
+  type InlineKeyboardMarkup,
+} from "../toolkit/ui/keyboard.js";
 
 const composer = new Composer<Ctx>();
 
-const mainMenu = inlineKeyboard([
-  [inlineButton("Join", "join:round"), inlineButton("Leave", "leave:round")],
-  [inlineButton("Start now", "start:round")],
-  [inlineButton("Balance", "menu:balance"), inlineButton("Leaderboard", "menu:leaderboard")],
-  [inlineButton("Help", "menu:help")],
-]);
+async function canShowStartNow(ctx: Ctx): Promise<boolean> {
+  if (!ctx.chat || !ctx.from) return false;
+  try {
+    const repository = await getGameRepository();
+    return repository.canStartRound({ groupId: ctx.chat.id, userId: ctx.from.id });
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("DATABASE_URL")) return false;
+    throw err;
+  }
+}
+
+async function mainMenu(ctx: Ctx): Promise<InlineKeyboardMarkup> {
+  const rows: InlineButton[][] = [
+    [inlineButton("Join", "join:round"), inlineButton("Leave", "leave:round")],
+  ];
+
+  if (await canShowStartNow(ctx)) {
+    rows.push([inlineButton("Start Now", "start:round")]);
+  }
+
+  rows.push(
+    [inlineButton("Balance", "menu:balance"), inlineButton("Leaderboard", "menu:leaderboard")],
+    [inlineButton("Help", "menu:help")],
+  );
+
+  return inlineKeyboard(rows);
+}
 
 composer.command("start", async (ctx) => {
   await ctx.reply("Welcome! I am ready to help.");
@@ -20,7 +47,7 @@ composer.command("start", async (ctx) => {
       "Join an elimination round, start one now, or check scores.",
       "Commands: /balance, /leaderboard, /help",
     ].join("\n"),
-    { reply_markup: mainMenu },
+    { reply_markup: await mainMenu(ctx) },
   );
 });
 
