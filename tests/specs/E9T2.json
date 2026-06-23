@@ -23,7 +23,15 @@
           {
             "method": "editMessageText",
             "payload": {
-              "text": "Elimination Party\n\nParticipants: 0\nStake: 10 points"
+              "text": "Elimination Party\n\nParticipants: 0\nStake: 10 points",
+              "reply_markup": {
+                "inline_keyboard": [
+                  [
+                    { "text": "Join", "callback_data": "join:round" },
+                    { "text": "Run Round Now", "callback_data": "start:round" }
+                  ]
+                ]
+              }
             }
           }
         ]
