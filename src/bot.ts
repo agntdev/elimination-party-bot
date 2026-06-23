@@ -1,11 +1,12 @@
 import { Composer } from "grammy";
 import { readdirSync } from "node:fs";
 import { createBot, type BotContext } from "./toolkit/index.js";
+import type { RoundSessionContainer } from "./game/round-session.js";
 
 // The per-chat session shape (ephemeral conversation state only). Extend as the
 // bot grows. Durable domain data must NOT live here — use the toolkit's
 // persistent storage (see AGENTS.md).
-export interface Session {
+export interface Session extends RoundSessionContainer {
   // example: step?: "awaiting_amount";
 }
 

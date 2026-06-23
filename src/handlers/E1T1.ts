@@ -1,6 +1,7 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
 import { getGameRepository } from "../game/runtime.js";
+import { storeRoundSession } from "../game/round-session.js";
 
 const composer = new Composer<Ctx>();
 
@@ -38,6 +39,15 @@ composer.callbackQuery("join:round", async (ctx) => {
       return;
     }
 
+    storeRoundSession(ctx.session, {
+      groupId: ctx.chat.id,
+      stake: result.stakeAmount,
+      state: "open",
+      joinList: result.joinList,
+      ...(result.joinWindowStartedAt ? { joinWindowStartedAt: result.joinWindowStartedAt } : {}),
+      ...(result.joinWindowExpiresAt ? { joinWindowExpiresAt: result.joinWindowExpiresAt } : {}),
+    });
+
     if (result.status === "already_joined") {
       await ctx.editMessageText(
         `You are already in this round. Players joined: ${result.participantCount}.`,
@@ -45,8 +55,11 @@ composer.callbackQuery("join:round", async (ctx) => {
       return;
     }
 
+    const joinWindow = result.joinWindowStarted
+      ? ` Join window: ${result.joinWindowSeconds}s.`
+      : "";
     await ctx.editMessageText(
-      `Joined the round. Stake: ${result.stakeAmount} points. Players joined: ${result.participantCount}.`,
+      `Joined the round. Stake: ${result.stakeAmount} points. Players joined: ${result.participantCount}.${joinWindow}`,
     );
   } catch (err) {
     if (err instanceof Error && err.message.includes("DATABASE_URL")) {

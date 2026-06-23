@@ -82,10 +82,10 @@ describe("PostgresGameRepository", () => {
 
   it("adds a funded player to a new open round", async () => {
     const db = new ScriptedDb([
-      [{ stake_amount: 10 }],
+      [{ stake_amount: 10, join_window_seconds: 30 }],
       [{ balance: 500 }],
       [],
-      [{ id: "round-1", join_list: [] }],
+      [{ id: "round-1", join_list: [], join_window_started_at: null, join_window_expires_at: null }],
       [{ join_list: [42] }],
     ]);
     const repository = new PostgresGameRepository(db);
@@ -95,6 +95,9 @@ describe("PostgresGameRepository", () => {
       balance: 500,
       stakeAmount: 10,
       participantCount: 1,
+      joinList: [42],
+      joinWindowStarted: false,
+      joinWindowSeconds: 30,
     });
 
     expect(db.calls.some((call) => call.sql.includes("INSERT INTO groups"))).toBe(true);
@@ -103,8 +106,39 @@ describe("PostgresGameRepository", () => {
     expect(db.calls.some((call) => call.sql.includes("jsonb_build_array"))).toBe(true);
   });
 
+  it("starts the join window when the second player joins", async () => {
+    const db = new ScriptedDb([
+      [{ stake_amount: 10, join_window_seconds: 30 }],
+      [{ balance: 500 }],
+      [{ id: "round-1", join_list: [77], join_window_started_at: null, join_window_expires_at: null }],
+      [{ join_list: [77, 42] }],
+      [
+        {
+          join_window_started_at: "2026-06-23T12:00:00.000Z",
+          join_window_expires_at: "2026-06-23T12:00:30.000Z",
+        },
+      ],
+    ]);
+    const repository = new PostgresGameRepository(db);
+
+    await expect(repository.joinRound(joinInput)).resolves.toEqual({
+      status: "joined",
+      balance: 500,
+      stakeAmount: 10,
+      participantCount: 2,
+      joinList: [77, 42],
+      joinWindowStarted: true,
+      joinWindowSeconds: 30,
+      joinWindowStartedAt: "2026-06-23T12:00:00.000Z",
+      joinWindowExpiresAt: "2026-06-23T12:00:30.000Z",
+    });
+
+    const joinWindowUpdate = db.calls.find((call) => call.sql.includes("join_window_started_at = now()"));
+    expect(joinWindowUpdate?.params).toEqual(["round-1", 30]);
+  });
+
   it("does not add a player whose balance is below the group stake", async () => {
-    const db = new ScriptedDb([[{ stake_amount: 10 }], [{ balance: 5 }]]);
+    const db = new ScriptedDb([[{ stake_amount: 10, join_window_seconds: 30 }], [{ balance: 5 }]]);
     const repository = new PostgresGameRepository(db);
 
     await expect(repository.joinRound(joinInput)).resolves.toEqual({
@@ -119,9 +153,9 @@ describe("PostgresGameRepository", () => {
 
   it("keeps a player from joining the same open round twice", async () => {
     const db = new ScriptedDb([
-      [{ stake_amount: 10 }],
+      [{ stake_amount: 10, join_window_seconds: 30 }],
       [{ balance: 500 }],
-      [{ id: "round-1", join_list: [42, 77] }],
+      [{ id: "round-1", join_list: [42, 77], join_window_started_at: null, join_window_expires_at: null }],
     ]);
     const repository = new PostgresGameRepository(db);
 
@@ -130,6 +164,7 @@ describe("PostgresGameRepository", () => {
       balance: 500,
       stakeAmount: 10,
       participantCount: 2,
+      joinList: [42, 77],
     });
 
     expect(db.calls.some((call) => call.sql.includes("UPDATE rounds"))).toBe(false);

@@ -32,11 +32,17 @@ export const schemaStatements = [
     stake integer NOT NULL CHECK (stake >= 1),
     state text NOT NULL CHECK (state IN ('open', 'countdown', 'complete', 'cancelled')),
     join_list jsonb NOT NULL DEFAULT '[]'::jsonb,
+    join_window_started_at timestamptz,
+    join_window_expires_at timestamptz,
     started_at timestamptz,
     eliminated_user_id bigint,
     finished_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now()
   )`,
+  `ALTER TABLE IF EXISTS rounds
+   ADD COLUMN IF NOT EXISTS join_window_started_at timestamptz`,
+  `ALTER TABLE IF EXISTS rounds
+   ADD COLUMN IF NOT EXISTS join_window_expires_at timestamptz`,
   `CREATE TABLE IF NOT EXISTS transactions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     group_id bigint NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
