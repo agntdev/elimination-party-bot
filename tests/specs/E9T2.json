@@ -1,0 +1,80 @@
+[
+  {
+    "name": "chosen_inline_result for start game edits the message with default values",
+    "steps": [
+      {
+        "send": {
+          "update": {
+            "update_id": 921,
+            "chosen_inline_result": {
+              "result_id": "start-elimination-game",
+              "from": {
+                "id": 101,
+                "is_bot": false,
+                "first_name": "Ada",
+                "username": "ada"
+              },
+              "inline_message_id": "im-921",
+              "query": "start"
+            }
+          }
+        },
+        "expect": [
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Elimination Party\n\nParticipants: 0\nStake: 10 points"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "chosen_inline_result ignores unknown result ids",
+    "steps": [
+      {
+        "send": {
+          "update": {
+            "update_id": 922,
+            "chosen_inline_result": {
+              "result_id": "some-other-result",
+              "from": {
+                "id": 101,
+                "is_bot": false,
+                "first_name": "Ada",
+                "username": "ada"
+              },
+              "inline_message_id": "im-922",
+              "query": "other"
+            }
+          }
+        },
+        "expect": []
+      }
+    ]
+  },
+  {
+    "name": "chosen_inline_result with missing inline_message_id is ignored",
+    "steps": [
+      {
+        "send": {
+          "update": {
+            "update_id": 923,
+            "chosen_inline_result": {
+              "result_id": "start-elimination-game",
+              "from": {
+                "id": 101,
+                "is_bot": false,
+                "first_name": "Ada",
+                "username": "ada"
+              },
+              "query": "start"
+            }
+          }
+        },
+        "expect": []
+      }
+    ]
+  }
+]
