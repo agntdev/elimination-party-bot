@@ -1,6 +1,6 @@
 Summary
 
-Elimination Party Bot is a Telegram group-game bot where players join rounds with virtual points (no real money). Once at least 2 players join a round, the bot counts down 3…2…1 (sending a GIF each second) and then picks one player to eliminate using a cryptographically secure PRNG. The eliminated player loses the group-stake they risked for the round; that stake is split equally among the survivors. Each group has a per-group leaderboard (players ranked by current point balance). Default stake is 10 points; the group creator can change it.
+Elimination Party Bot is a Telegram group-game bot where players join rounds with virtual points (no real money). Once at least 2 players join a round, the bot counts down 3…2…1 (sending a GIF each second) and then picks one player to eliminate using a cryptographically secure PRNG. The eliminated player loses the group-stake they risked for the round; that stake is split equally among the survivors. Balances and the leaderboard are global across all chats, while stakes and rounds remain per group. Default stake is 10 points; the group creator can change it.
 
 Audience
 
@@ -9,7 +9,7 @@ Audience
 Core entities
 
 - Group (chat): id, name, creator_id, stake_amount, join_window_seconds, gif_pack, created_at
-- Player (per-group): user_id, username, display_name, balance (int), joined_at (first seen), last_seen
+- Player (global): user_id, username, display_name, balance (int), joined_at (first seen), last_seen
 - Round: id, group_id, stake, state (open/countdown/complete/cancelled), join_list [user_id order], started_at, eliminated_user_id, finished_at
 - Audit/Transaction: id, group_id, user_id, delta (int), reason (stake_lost/share_won), related_round_id, created_at
 
@@ -27,8 +27,8 @@ Commands and buttons
 - /leave (button: Leave) — leave an open round before countdown begins.
 - /startround (button: Start now) — manually start the join window or start immediately (creator only). If a join window is ongoing, start immediately.
 - /setstake <amount> — group creator only; sets the uniform stake for the group (integer >=1).
-- /balance — show the caller's current balance in this group and whether they are in the open round.
-- /leaderboard — show the group's leaderboard (top 10 by balance, with pagination).
+- /balance — show the caller's global balance and whether they are in this chat's open round.
+- /leaderboard — show the global leaderboard (top 10 by balance, with pagination).
 - /help — usage and rules.
 
 Round lifecycle (default behavior)
@@ -37,23 +37,24 @@ Round lifecycle (default behavior)
 - Join: When a user presses Join or sends /join, the bot verifies balance >= stake and adds them to the round's join_list (preserves order). Users can only be in one round per group at a time.
 - Countdown: After the join window expires or someone starts the round manually (or the creator forces start), the bot sends three countdown messages (3, 2, 1) spaced ~1s apart; each countdown message includes the configured GIF for that step. GIF URLs are stored in the group's gif_pack.
 - Elimination: After countdown, the bot selects one player uniformly at random from the join_list using a crypto-secure RNG and marks that player eliminated.
-- Payout: The eliminated player's balance is reduced by stake. The eliminated player's stake (an integer) is split equally among the survivors (n-1); each survivor receives floor(stake/(n-1)) points; any remainder is distributed +1 point to survivors in join order until exhausted. Survivors keep their own stakes (stakes are only lost by the eliminated player). All balance changes are recorded as transactions.
-- Post-round: The bot reports the eliminated player, new balances for participants, and updates the group leaderboard. The round closes and is archived.
+- Payout: The eliminated player's global balance is reduced by stake. The eliminated player's stake (an integer) is split equally among the survivors (n-1); each survivor receives floor(stake/(n-1)) points; any remainder is distributed +1 point to survivors in join order until exhausted. Survivors keep their own stakes (stakes are only lost by the eliminated player). All balance changes are recorded as transactions.
+- Post-round: The bot reports the eliminated player, new balances for participants, and updates the global leaderboard. The round closes and is archived.
 
 Edge cases
 
 - If a player doesn't have stake when trying to /join: reject with explanation and show /balance.
 - If someone leaves mid-join-window: removed from join_list.
 - If a player is removed from the group or blocks the bot during a round: treat them as having left before countdown if they left before start; if they are still present at the moment of elimination they are eligible. If the eliminated player cannot be credited/debited (user account missing) the bot still records the event and their balance becomes floored at 0.
-- Concurrency: Group-level locking prevents overlapping rounds in the same group.
+- Concurrency: A short-lived game-state lock prevents overlapping balance and round mutations.
 
 Persistence
 
-Primary store: Redis via `REDIS_URL`. Redis stores one JSON game-state document per Telegram group, including group settings, players, balances, rounds, and audit transactions. Group-level Redis locks prevent overlapping updates in the same group.
+Primary store: Redis via `REDIS_URL`. Redis stores one JSON game-state document per Telegram group for group settings and rounds, plus one global document for players, balances, leaderboard data, and audit transactions. A short-lived Redis lock prevents overlapping updates across group and global state.
 
 Short key layout (implementation detail):
-- `game:group:<group_id>` JSON document for Groups, Players, Rounds, Transactions
-- `game:lock:<group_id>` short-lived mutation lock
+- `game:group:<group_id>` JSON document for group settings and rounds
+- `game:global` JSON document for global players, balances, and transactions
+- `game:lock:global` short-lived mutation lock
 
 Implementation notes
 
@@ -70,7 +71,7 @@ Payments
 Non-goals
 
 - No real-money wagering, deposits, withdrawals, or cashout flows.
-- No cross-group/global economy (leaderboards are per-group only). Global leaderboard is out of scope.
+- No real-money cross-chat economy. Global balances and leaderboard are virtual points only.
 - No external RNG services (per owner decision).
 
 ## Assumptions & defaults

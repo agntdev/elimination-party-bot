@@ -9,12 +9,12 @@ const PER_PAGE = 10;
 
 function formatLeaderboard(result: LeaderboardResult): string {
   if (result.entries.length === 0) {
-    return "Leaderboard is empty. Join a round to appear here.";
+    return "Global leaderboard is empty. Join a round to appear here.";
   }
 
   const startRank = result.page * result.perPage + 1;
   return [
-    `Leaderboard - page ${result.page + 1}`,
+    `Global leaderboard - page ${result.page + 1}`,
     ...result.entries.map(
       (entry, index) => `${startRank + index}. ${entry.displayName} - ${entry.balance} points`,
     ),

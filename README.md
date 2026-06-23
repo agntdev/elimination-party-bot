@@ -8,4 +8,4 @@ Built on [agnt-gm.ai](https://agnt-gm.ai). Contributions across every build phas
 
 ## Runtime
 
-Set `BOT_TOKEN` and `REDIS_URL` before running the bot. Redis stores both grammY sessions and durable game state for groups, players, rounds, and balances.
+Set `BOT_TOKEN` and `REDIS_URL` before running the bot. Redis stores both grammY sessions and durable game state: per-chat rounds/settings plus global players, balances, and leaderboard data.
