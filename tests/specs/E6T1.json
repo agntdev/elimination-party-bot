@@ -1,0 +1,18 @@
+[
+  {
+    "name": "/join reports missing persistent storage",
+    "steps": [
+      {
+        "send": { "text": "/join" },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Round storage is not configured. Set DATABASE_URL before joining rounds."
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
