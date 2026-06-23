@@ -1,6 +1,7 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
 import type { GameRepository } from "../game/repository.js";
+import { formatPayoutSummary } from "./E4T2.js";
 
 const composer = new Composer<Ctx>();
 
@@ -24,7 +25,7 @@ export async function completeRandomElimination(
     return;
   }
 
-  await ctx.reply(`Eliminated player: ${result.eliminatedUserId}.`);
+  await ctx.reply(`Eliminated player: ${result.eliminatedUserId}.\n${formatPayoutSummary(result.payouts)}`);
 }
 
 export default composer;

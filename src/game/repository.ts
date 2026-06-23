@@ -117,11 +117,18 @@ export interface EliminateRandomPlayerInput {
   groupId: number;
 }
 
+export interface StakePayout {
+  userId: number;
+  amount: number;
+}
+
 export type EliminateRandomPlayerResult =
   | {
       status: "completed";
       eliminatedUserId: number;
       participantCount: number;
+      stakeAmount: number;
+      payouts: StakePayout[];
     }
   | {
       status: "no_countdown_round";
@@ -169,6 +176,16 @@ function parseGifPack(value: unknown): CountdownGifPack {
       (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].trim() !== "",
     ),
   );
+}
+
+function calculateStakePayouts(joinList: number[], eliminatedUserId: number, stake: number): StakePayout[] {
+  const survivors = joinList.filter((userId) => userId !== eliminatedUserId);
+  const baseAmount = Math.floor(stake / survivors.length);
+  const remainder = stake % survivors.length;
+  return survivors.map((userId, index) => ({
+    userId,
+    amount: baseAmount + (index < remainder ? 1 : 0),
+  }));
 }
 
 interface RoundWindowRow extends Record<string, unknown> {
@@ -373,8 +390,8 @@ export class PostgresGameRepository implements GameRepository {
   async eliminateRandomPlayer(input: EliminateRandomPlayerInput): Promise<EliminateRandomPlayerResult> {
     await this.db.query("BEGIN");
     try {
-      const activeRound = await this.db.query<{ id: string; join_list: unknown }>(
-        `SELECT id, join_list
+      const activeRound = await this.db.query<{ id: string; stake: number; join_list: unknown }>(
+        `SELECT id, stake, join_list
          FROM rounds
          WHERE group_id = $1 AND state = 'countdown'
          ORDER BY started_at DESC NULLS LAST, created_at DESC
@@ -389,12 +406,14 @@ export class PostgresGameRepository implements GameRepository {
       }
 
       const joinList = parseJoinList(round.join_list);
-      if (joinList.length < 1) {
+      if (joinList.length < 2) {
         await this.db.query("COMMIT");
         return { status: "not_enough_players", participantCount: joinList.length };
       }
 
       const eliminatedUserId = joinList[this.randomInt(joinList.length)]!;
+      const stakeAmount = Number(round.stake);
+      const payouts = calculateStakePayouts(joinList, eliminatedUserId, stakeAmount);
       await this.db.query(
         `UPDATE rounds
          SET state = 'complete',
@@ -403,12 +422,40 @@ export class PostgresGameRepository implements GameRepository {
          WHERE id = $1 AND state = 'countdown'`,
         [round.id, eliminatedUserId],
       );
+      await this.db.query(
+        `UPDATE players
+         SET balance = balance - $3,
+             last_seen = now()
+         WHERE group_id = $1 AND user_id = $2`,
+        [input.groupId, eliminatedUserId, stakeAmount],
+      );
+      await this.db.query(
+        `INSERT INTO transactions (group_id, user_id, delta, reason, related_round_id)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [input.groupId, eliminatedUserId, -stakeAmount, "stake_lost", round.id],
+      );
+      for (const payout of payouts) {
+        await this.db.query(
+          `UPDATE players
+           SET balance = balance + $3,
+               last_seen = now()
+           WHERE group_id = $1 AND user_id = $2`,
+          [input.groupId, payout.userId, payout.amount],
+        );
+        await this.db.query(
+          `INSERT INTO transactions (group_id, user_id, delta, reason, related_round_id)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [input.groupId, payout.userId, payout.amount, "share_won", round.id],
+        );
+      }
 
       await this.db.query("COMMIT");
       return {
         status: "completed",
         eliminatedUserId,
         participantCount: joinList.length,
+        stakeAmount,
+        payouts,
       };
     } catch (err) {
       await this.db.query("ROLLBACK");
