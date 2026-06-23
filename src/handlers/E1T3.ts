@@ -1,6 +1,7 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
 import { getGameRepository, isGameStorageConfigError } from "../game/runtime.js";
+import { USERNAME_REQUIRED_TEXT } from "./E8T3.js";
 import { sendCountdown } from "./E3T1.js";
 import { completeRandomElimination } from "./E4T1.js";
 
@@ -16,9 +17,15 @@ composer.callbackQuery("start:round", async (ctx) => {
 
   try {
     const repository = await getGameRepository();
+
+    if (!ctx.from.username) {
+      await ctx.editMessageText(USERNAME_REQUIRED_TEXT);
+      return;
+    }
+
     const result = await repository.startRound({
       groupId: ctx.chat.id,
-      username: ctx.from.username ?? String(ctx.from.id),
+      username: ctx.from.username,
     });
 
     if (result.status === "not_creator") {

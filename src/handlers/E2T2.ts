@@ -1,6 +1,7 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
 import { getGameRepository, isGameStorageConfigError } from "../game/runtime.js";
+import { USERNAME_REQUIRED_TEXT } from "./E8T3.js";
 
 const composer = new Composer<Ctx>();
 const USAGE_TEXT = "Usage: /setstake <amount>. Amount must be at least 1.";
@@ -39,10 +40,16 @@ composer.command("setstake", async (ctx) => {
 
   try {
     const repository = await getGameRepository();
+
+    if (!ctx.from.username) {
+      await ctx.reply(USERNAME_REQUIRED_TEXT);
+      return;
+    }
+
     const result = await repository.setStake({
       groupId: ctx.chat.id,
       groupName: groupName(ctx),
-      username: ctx.from.username ?? String(ctx.from.id),
+      username: ctx.from.username,
       amount,
     });
 

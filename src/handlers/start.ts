@@ -11,10 +11,10 @@ import {
 const composer = new Composer<Ctx>();
 
 async function canShowStartNow(ctx: Ctx): Promise<boolean> {
-  if (!ctx.chat || !ctx.from) return false;
+  if (!ctx.chat || !ctx.from || !ctx.from.username) return false;
   try {
     const repository = await getGameRepository();
-    return repository.canStartRound({ groupId: ctx.chat.id, username: ctx.from.username ?? String(ctx.from.id) });
+    return repository.canStartRound({ groupId: ctx.chat.id, username: ctx.from.username });
   } catch (err) {
     if (isGameStorageConfigError(err)) return false;
     throw err;
