@@ -14,6 +14,10 @@ describe("database schema", () => {
     expect(schemaSql).toContain("balance integer");
     expect(schemaSql).toContain("state text");
     expect(schemaSql).toContain("join_list jsonb");
+    expect(schemaSql).toContain("join_window_started_at timestamptz");
+    expect(schemaSql).toContain("join_window_expires_at timestamptz");
+    expect(schemaSql).toContain("ADD COLUMN IF NOT EXISTS join_window_started_at");
+    expect(schemaSql).toContain("ADD COLUMN IF NOT EXISTS join_window_expires_at");
     expect(schemaSql).toContain("eliminated_user_id bigint");
     expect(schemaSql).toContain("delta integer");
     expect(schemaSql).toContain("related_round_id uuid");

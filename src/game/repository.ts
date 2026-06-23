@@ -56,6 +56,11 @@ export type JoinRoundResult =
       balance: number;
       stakeAmount: number;
       participantCount: number;
+      joinList: number[];
+      joinWindowStarted?: boolean;
+      joinWindowSeconds?: number;
+      joinWindowStartedAt?: string;
+      joinWindowExpiresAt?: string;
     }
   | {
       status: "insufficient_balance";
@@ -104,6 +109,28 @@ function parseJoinList(value: unknown): number[] {
     return Array.isArray(parsed) ? parsed.map(Number) : [];
   }
   return [];
+}
+
+interface RoundWindowRow extends Record<string, unknown> {
+  join_window_started_at?: Date | string | null;
+  join_window_expires_at?: Date | string | null;
+}
+
+function timestampString(value: Date | string | null | undefined): string | undefined {
+  if (!value) return undefined;
+  return value instanceof Date ? value.toISOString() : value;
+}
+
+function windowFields(row: RoundWindowRow | undefined): {
+  joinWindowStartedAt?: string;
+  joinWindowExpiresAt?: string;
+} {
+  const startedAt = timestampString(row?.join_window_started_at);
+  const expiresAt = timestampString(row?.join_window_expires_at);
+  return {
+    ...(startedAt ? { joinWindowStartedAt: startedAt } : {}),
+    ...(expiresAt ? { joinWindowExpiresAt: expiresAt } : {}),
+  };
 }
 
 export class PostgresGameRepository implements GameRepository {
@@ -287,12 +314,12 @@ export class PostgresGameRepository implements GameRepository {
   async joinRound(input: JoinRoundInput): Promise<JoinRoundResult> {
     await this.db.query("BEGIN");
     try {
-      const group = await this.db.query<{ stake_amount: number }>(
+      const group = await this.db.query<{ stake_amount: number; join_window_seconds: number }>(
         `INSERT INTO groups (id, name, creator_id)
          VALUES ($1, $2, $3)
          ON CONFLICT (id) DO UPDATE SET
            name = COALESCE(EXCLUDED.name, groups.name)
-         RETURNING stake_amount`,
+         RETURNING stake_amount, join_window_seconds`,
         [input.groupId, input.groupName ?? null, input.user.id],
       );
 
@@ -308,6 +335,7 @@ export class PostgresGameRepository implements GameRepository {
       );
 
       const stakeAmount = Number(group.rows[0]?.stake_amount ?? 10);
+      const joinWindowSeconds = Number(group.rows[0]?.join_window_seconds ?? 30);
       const balance = Number(player.rows[0]?.balance ?? 0);
 
       if (balance < stakeAmount) {
@@ -315,8 +343,13 @@ export class PostgresGameRepository implements GameRepository {
         return { status: "insufficient_balance", balance, stakeAmount };
       }
 
-      const openRound = await this.db.query<{ id: string; join_list: unknown }>(
-        `SELECT id, join_list
+      const openRound = await this.db.query<{
+        id: string;
+        join_list: unknown;
+        join_window_started_at: Date | string | null;
+        join_window_expires_at: Date | string | null;
+      }>(
+        `SELECT id, join_list, join_window_started_at, join_window_expires_at
          FROM rounds
          WHERE group_id = $1 AND state = 'open'
          ORDER BY created_at DESC
@@ -328,10 +361,15 @@ export class PostgresGameRepository implements GameRepository {
       const round =
         openRound.rows[0] ??
         (
-          await this.db.query<{ id: string; join_list: unknown }>(
+          await this.db.query<{
+            id: string;
+            join_list: unknown;
+            join_window_started_at: Date | string | null;
+            join_window_expires_at: Date | string | null;
+          }>(
             `INSERT INTO rounds (group_id, stake, state, join_list)
              VALUES ($1, $2, 'open', '[]'::jsonb)
-             RETURNING id, join_list`,
+             RETURNING id, join_list, join_window_started_at, join_window_expires_at`,
             [input.groupId, stakeAmount],
           )
         ).rows[0];
@@ -344,6 +382,8 @@ export class PostgresGameRepository implements GameRepository {
           balance,
           stakeAmount,
           participantCount: joinList.length,
+          joinList,
+          ...windowFields(round),
         };
       }
 
@@ -354,13 +394,33 @@ export class PostgresGameRepository implements GameRepository {
          RETURNING join_list`,
         [round?.id, input.user.id],
       );
+      const updatedJoinList = parseJoinList(updated.rows[0]?.join_list);
+      const participantCount = updatedJoinList.length;
+      let joinWindowStarted = false;
+      let windowRow: RoundWindowRow | undefined = round;
+      if (participantCount >= 2 && !round?.join_window_started_at) {
+        const joinWindow = await this.db.query<RoundWindowRow>(
+          `UPDATE rounds
+           SET join_window_started_at = now(),
+               join_window_expires_at = now() + ($2::text || ' seconds')::interval
+           WHERE id = $1 AND join_window_started_at IS NULL
+           RETURNING join_window_started_at, join_window_expires_at`,
+          [round?.id, joinWindowSeconds],
+        );
+        windowRow = joinWindow.rows[0] ?? windowRow;
+        joinWindowStarted = Boolean(joinWindow.rows[0]);
+      }
 
       await this.db.query("COMMIT");
       return {
         status: "joined",
         balance,
         stakeAmount,
-        participantCount: parseJoinList(updated.rows[0]?.join_list).length,
+        participantCount,
+        joinList: updatedJoinList,
+        joinWindowStarted,
+        joinWindowSeconds,
+        ...windowFields(windowRow),
       };
     } catch (err) {
       await this.db.query("ROLLBACK");
