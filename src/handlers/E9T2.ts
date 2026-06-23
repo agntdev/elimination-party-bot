@@ -15,7 +15,7 @@ composer.on("chosen_inline_result", async (ctx) => {
     `Elimination Party\n\nParticipants: 0`,
     {
       reply_markup: inlineKeyboard([
-        [inlineButton("Join", "join:round"), inlineButton("Run Round Now", "start:round")],
+        [inlineButton("Join", "join:round")],
       ]),
     },
   );

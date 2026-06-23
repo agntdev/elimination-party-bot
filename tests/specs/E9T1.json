@@ -39,8 +39,7 @@
                   "reply_markup": {
                     "inline_keyboard": [
                       [
-                        { "text": "Join", "callback_data": "join:round" },
-                        { "text": "Run Round Now", "callback_data": "start:round" }
+                        { "text": "Join", "callback_data": "join:round" }
                       ]
                     ]
                   }
