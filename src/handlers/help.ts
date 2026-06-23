@@ -12,7 +12,7 @@ const HELP_TEXT = [
   "/setstake <amount> - Set the group stake",
   "",
   "Main menu buttons:",
-  "Join round - Enter the open round",
+  "Join - Enter the open round",
   "Leave round - Leave before the countdown",
   "Start now - Begin once enough players have joined",
   "Balance - Open your current score",
