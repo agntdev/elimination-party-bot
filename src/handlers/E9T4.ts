@@ -22,7 +22,7 @@ composer.callbackQuery("start:round", async (ctx) => {
     });
 
     if (result.status === "no_open_round") {
-      await ctx.editMessageText("There is no open round to start. The round may have already been started or cancelled.");
+      await ctx.editMessageText("No open round to start. Tap Join first.");
       return;
     }
 
