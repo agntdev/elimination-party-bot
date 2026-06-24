@@ -1,0 +1,237 @@
+[
+  {
+    "name": "/startimmediate reports missing persistent storage",
+    "steps": [
+      {
+        "send": { "text": "/startimmediate" },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Round storage is not configured. Set REDIS_URL before starting rounds."
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "/startimmediate requires a username",
+    "steps": [
+      {
+        "send": { "callback": "e2e:seed" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "editMessageText", "payload": { "text": "E2E round fixture ready." } }
+        ]
+      },
+      {
+        "send": { "text": "/startimmediate", "userId": 999 },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "You need a Telegram username to use this command. Set one in Telegram Settings."
+            }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "e2e:reset" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "editMessageText", "payload": { "text": "E2E round fixture cleared." } }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "/startimmediate force-starts a round for the creator",
+    "steps": [
+      {
+        "send": { "callback": "e2e:seed" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "editMessageText", "payload": { "text": "E2E round fixture ready." } }
+        ]
+      },
+      {
+        "send": { "callback": "join:round", "userId": 101, "username": "101" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Joined the round. Stake: 10 points. Players joined: 1."
+            }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "join:round", "userId": 202, "username": "202" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Joined the round. Stake: 10 points. Players joined: 2. Join window: 30s."
+            }
+          }
+        ]
+      },
+      {
+        "send": { "text": "/startimmediate", "userId": 101, "username": "101" },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": { "text": "Round started immediately. Players joined: 2." }
+          },
+          {
+            "method": "sendAnimation",
+            "payload": {
+              "animation": "https://example.test/countdown-3.gif",
+              "caption": "3"
+            }
+          },
+          {
+            "method": "sendAnimation",
+            "payload": {
+              "animation": "https://example.test/countdown-2.gif",
+              "caption": "2"
+            }
+          },
+          {
+            "method": "sendAnimation",
+            "payload": {
+              "animation": "https://example.test/countdown-1.gif",
+              "caption": "1"
+            }
+          },
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Eliminated player: 202.\nPayouts: 101 +10."
+            }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "e2e:reset" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "editMessageText", "payload": { "text": "E2E round fixture cleared." } }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "/startimmediate fails when not enough players",
+    "steps": [
+      {
+        "send": { "callback": "e2e:seed" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "editMessageText", "payload": { "text": "E2E round fixture ready." } }
+        ]
+      },
+      {
+        "send": { "text": "/startimmediate", "userId": 101, "username": "101" },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Need at least 2 players to start. Players joined: 0."
+            }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "e2e:reset" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "editMessageText", "payload": { "text": "E2E round fixture cleared." } }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Start Immediately button works via callback",
+    "steps": [
+      {
+        "send": { "callback": "e2e:seed" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "editMessageText", "payload": { "text": "E2E round fixture ready." } }
+        ]
+      },
+      {
+        "send": { "callback": "join:round", "userId": 101, "username": "101" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Joined the round. Stake: 10 points. Players joined: 1."
+            }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "join:round", "userId": 202, "username": "202" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Joined the round. Stake: 10 points. Players joined: 2. Join window: 30s."
+            }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "start:immediate", "userId": 101, "username": "101" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          {
+            "method": "editMessageText",
+            "payload": { "text": "Round started immediately. Players joined: 2." }
+          },
+          {
+            "method": "sendAnimation",
+            "payload": {
+              "animation": "https://example.test/countdown-3.gif",
+              "caption": "3"
+            }
+          },
+          {
+            "method": "sendAnimation",
+            "payload": {
+              "animation": "https://example.test/countdown-2.gif",
+              "caption": "2"
+            }
+          },
+          {
+            "method": "sendAnimation",
+            "payload": {
+              "animation": "https://example.test/countdown-1.gif",
+              "caption": "1"
+            }
+          },
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Eliminated player: 202.\nPayouts: 101 +10."
+            }
+          }
+        ]
+      },
+      {
+        "send": { "callback": "e2e:reset" },
+        "expect": [
+          { "method": "answerCallbackQuery" },
+          { "method": "editMessageText", "payload": { "text": "E2E round fixture cleared." } }
+        ]
+      }
+    ]
+  }
+]
