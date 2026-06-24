@@ -17,6 +17,7 @@ import type {
   LeaderboardResult,
   LeaveRoundInput,
   LeaveRoundResult,
+  OpenRoundGroup,
   SetStakeInput,
   SetStakeResult,
   StakePayout,
@@ -27,6 +28,7 @@ export interface RedisGameClient {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, ...args: string[]): Promise<unknown>;
   del(key: string): Promise<unknown>;
+  keys(pattern: string): Promise<string[]>;
 }
 
 interface RedisPlayer {
@@ -260,6 +262,26 @@ export class RedisGameRepository implements GameRepository {
         gifPack: group.gifPack,
       };
     });
+  }
+
+  async getOpenRoundGroups(): Promise<OpenRoundGroup[]> {
+    const groupKeys = await this.redis.keys(`${this.prefix}:group:*`);
+    const results: OpenRoundGroup[] = [];
+    for (const key of groupKeys) {
+      const raw = await this.redis.get(key);
+      if (!raw) continue;
+      const group = parseGroup(raw);
+      if (!group) continue;
+      const open = latestRound(group.rounds, "open");
+      if (open?.joinWindowExpiresAt) {
+        results.push({
+          groupId: group.id,
+          expiresAt: open.joinWindowExpiresAt,
+          gifPack: group.gifPack,
+        });
+      }
+    }
+    return results;
   }
 
   async eliminateRandomPlayer(input: EliminateRandomPlayerInput): Promise<EliminateRandomPlayerResult> {

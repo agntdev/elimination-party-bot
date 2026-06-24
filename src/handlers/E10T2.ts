@@ -1,4 +1,4 @@
-import { Composer } from "grammy";
+import { Composer, type Api } from "grammy";
 import type { Ctx } from "../bot.js";
 import { getGameRepository, isGameStorageConfigError, setGameRepositoryForTests } from "../game/runtime.js";
 import type {
@@ -12,10 +12,105 @@ import { completeRandomElimination } from "./E4T1.js";
 
 const composer = new Composer<Ctx>();
 
+type ScheduleFn = (ms: number, callback: () => void) => NodeJS.Timeout;
+
+let autoStartScheduler: ScheduleFn = (ms, cb) => setTimeout(cb, ms);
+let botApi: Api | undefined;
+let recoveryPerformed = false;
+const autoStartTimers = new Map<number, NodeJS.Timeout>();
+
+export function setAutoStartTimerSchedulerForTests(scheduler: ScheduleFn): void {
+  autoStartScheduler = scheduler;
+}
+
+export function resetAutoStartTimerSchedulerForTests(): void {
+  autoStartScheduler = (ms, cb) => setTimeout(cb, ms);
+}
+
+export function scheduleAutoStartTimer(groupId: number, delayMs: number): void {
+  cancelAutoStartTimer(groupId);
+  if (delayMs <= 0) return;
+  const timer = autoStartScheduler(delayMs, () => {
+    autoStartTimers.delete(groupId);
+    performAutoStart(groupId);
+  });
+  autoStartTimers.set(groupId, timer);
+}
+
+export function cancelAutoStartTimer(groupId: number): void {
+  const existing = autoStartTimers.get(groupId);
+  if (existing) {
+    clearTimeout(existing);
+    autoStartTimers.delete(groupId);
+  }
+}
+
+function flushScheduledAutoStart(groupId: number): void {
+  const existing = autoStartTimers.get(groupId);
+  if (existing) {
+    clearTimeout(existing);
+    autoStartTimers.delete(groupId);
+    performAutoStart(groupId);
+  }
+}
+
+async function performAutoStart(groupId: number): Promise<void> {
+  if (!botApi) return;
+  try {
+    const repository = await getGameRepository();
+    if (typeof repository.autoStartIfJoinWindowExpired !== "function") return;
+    const result = await repository.autoStartIfJoinWindowExpired({ groupId });
+    if (result.status === "no_expired_round") return;
+
+    const mockCtx = {
+      reply: (text: string) => botApi!.sendMessage(groupId, text),
+      replyWithAnimation: (animation: string, other?: { caption?: string }) =>
+        botApi!.sendAnimation(groupId, animation, other),
+      chat: { id: groupId },
+    } as Pick<Ctx, "chat" | "reply" | "replyWithAnimation">;
+
+    await mockCtx.reply(`Round started. Players joined: ${result.participantCount}.`);
+    await sendCountdown(mockCtx, result.gifPack);
+    await completeRandomElimination(mockCtx, repository);
+  } catch (err) {
+    if (!isGameStorageConfigError(err)) throw err;
+  }
+}
+
+async function recoverAutoStartTimers(): Promise<void> {
+  try {
+    const repository = await getGameRepository();
+    if (typeof repository.getOpenRoundGroups !== "function") return;
+    const groups = await repository.getOpenRoundGroups();
+    const nowMs = Date.now();
+    for (const group of groups) {
+      cancelAutoStartTimer(group.groupId);
+      const expiresAtMs = new Date(group.expiresAt).getTime();
+      if (nowMs >= expiresAtMs) {
+        performAutoStart(group.groupId);
+      } else {
+        const delayMs = expiresAtMs - nowMs;
+        scheduleAutoStartTimer(group.groupId, delayMs);
+      }
+    }
+  } catch (err) {
+    if (!isGameStorageConfigError(err)) throw err;
+  }
+}
+
 composer.on("message", async (ctx, next) => {
   if (!ctx.chat) {
     await next();
     return;
+  }
+
+  if (!botApi && ctx.api) {
+    botApi = ctx.api;
+  }
+
+  if (!recoveryPerformed) {
+    recoveryPerformed = true;
+    recoverAutoStartTimers().catch(() => {});
   }
 
   try {
@@ -31,6 +126,7 @@ composer.on("message", async (ctx, next) => {
       return;
     }
 
+    cancelAutoStartTimer(ctx.chat.id);
     await ctx.reply(`Round started. Players joined: ${result.participantCount}.`);
     await sendCountdown(ctx, result.gifPack);
     await completeRandomElimination(ctx, repository);
@@ -68,7 +164,7 @@ if (harnessSpecsAreRunning()) {
         stakeAmount: 10,
         participantCount: this.joinList.length,
         joinList: [...this.joinList],
-        ...(joinWindowStarted ? { joinWindowStarted: true, joinWindowSeconds: 30 } : {}),
+        ...(joinWindowStarted ? { joinWindowStarted: true, joinWindowSeconds: 30, joinWindowExpiresAt: new Date(Date.now() + 30000).toISOString() } : {}),
       };
     }
 
@@ -124,6 +220,10 @@ if (harnessSpecsAreRunning()) {
     await ctx.answerCallbackQuery();
     fixture = new AutoStartFixture();
     setCountdownDelayForTests(async () => {});
+    setAutoStartTimerSchedulerForTests((_ms, cb) => {
+      cb();
+      return setTimeout(() => {}, 0);
+    });
     const repo = {
       autoStartIfJoinWindowExpired: fixture.autoStartIfJoinWindowExpired.bind(fixture),
       joinRound: fixture.joinRound.bind(fixture),
@@ -139,6 +239,9 @@ if (harnessSpecsAreRunning()) {
     if (fixture) {
       fixture.expired = true;
     }
+    if (ctx.chat) {
+      flushScheduledAutoStart(ctx.chat.id);
+    }
     await ctx.editMessageText("Join window expired.");
   });
 
@@ -147,6 +250,7 @@ if (harnessSpecsAreRunning()) {
     fixture = undefined;
     setGameRepositoryForTests(undefined);
     resetCountdownDelayForTests();
+    resetAutoStartTimerSchedulerForTests();
     await ctx.editMessageText("Auto-start fixture cleared.");
   });
 }

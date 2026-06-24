@@ -4,6 +4,7 @@ import { getGameRepository, isGameStorageConfigError } from "../game/runtime.js"
 import { storeRoundSession } from "../game/round-session.js";
 import { insufficientBalanceReplyMarkup } from "./E6T1.js";
 import { inlineButton, inlineKeyboard } from "../toolkit/ui/keyboard.js";
+import { scheduleAutoStartTimer } from "./E10T2.js";
 
 const composer = new Composer<Ctx>();
 
@@ -56,6 +57,14 @@ composer.callbackQuery("join:round", async (ctx) => {
       ...(result.joinWindowStartedAt ? { joinWindowStartedAt: result.joinWindowStartedAt } : {}),
       ...(result.joinWindowExpiresAt ? { joinWindowExpiresAt: result.joinWindowExpiresAt } : {}),
     });
+
+    if (result.joinWindowStarted) {
+      const expiresAtMs = result.joinWindowExpiresAt
+        ? new Date(result.joinWindowExpiresAt).getTime()
+        : Date.now() + (result.joinWindowSeconds ?? 30) * 1000;
+      const delayMs = Math.max(0, expiresAtMs - Date.now());
+      scheduleAutoStartTimer(ctx.chat.id, delayMs);
+    }
 
     const username = usernameKey(ctx);
     const canStart = await repository.canStartRound({
