@@ -34,6 +34,7 @@ composer.on("message", async (ctx, next) => {
     await ctx.reply(`Round started. Players joined: ${result.participantCount}.`);
     await sendCountdown(ctx, result.gifPack);
     await completeRandomElimination(ctx, repository);
+    return;
   } catch (err) {
     if (isGameStorageConfigError(err)) {
       await next();

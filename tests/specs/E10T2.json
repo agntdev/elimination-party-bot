@@ -37,8 +37,7 @@
           { "method": "sendAnimation", "payload": { "animation": "https://example.test/countdown-3.gif", "caption": "3" } },
           { "method": "sendAnimation", "payload": { "animation": "https://example.test/countdown-2.gif", "caption": "2" } },
           { "method": "sendAnimation", "payload": { "animation": "https://example.test/countdown-1.gif", "caption": "1" } },
-          { "method": "sendMessage", "payload": { "text": "Eliminated player: 202.\nPayouts: 101 +10." } },
-          { "method": "sendMessage", "payload": { "text": "Sorry, I didn't understand that. Try /help." } }
+          { "method": "sendMessage", "payload": { "text": "Eliminated player: 202.\nPayouts: 101 +10." } }
         ]
       },
       {
