@@ -1,5 +1,7 @@
 import { randomInt as cryptoRandomInt, randomUUID } from "node:crypto";
 import type {
+  AutoStartIfExpiredInput,
+  AutoStartIfExpiredResult,
   BalanceInput,
   BalanceResult,
   CountdownGifPack,
@@ -223,6 +225,31 @@ export class RedisGameRepository implements GameRepository {
       if (round.joinList.length < 2) {
         return { status: "not_enough_players", participantCount: round.joinList.length };
       }
+
+      round.state = "countdown";
+      round.startedAt = this.nowIso();
+      await this.saveGroup(group);
+      return {
+        status: "started",
+        participantCount: round.joinList.length,
+        gifPack: group.gifPack,
+      };
+    });
+  }
+
+  async autoStartIfJoinWindowExpired(input: AutoStartIfExpiredInput): Promise<AutoStartIfExpiredResult> {
+    return this.withGameLock(async () => {
+      const group = await this.loadGroup(input.groupId);
+      if (!group) return { status: "no_expired_round" };
+
+      const round = latestRound(group.rounds, "open");
+      if (!round) return { status: "no_expired_round" };
+      if (round.joinList.length < 2) return { status: "no_expired_round" };
+      if (!round.joinWindowExpiresAt) return { status: "no_expired_round" };
+
+      const nowMs = this.now();
+      const expiresAtMs = new Date(round.joinWindowExpiresAt).getTime();
+      if (nowMs < expiresAtMs) return { status: "no_expired_round" };
 
       round.state = "countdown";
       round.startedAt = this.nowIso();
