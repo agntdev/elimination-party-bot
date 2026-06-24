@@ -113,6 +113,20 @@ export interface EliminateRandomPlayerInput {
   groupId: number;
 }
 
+export interface AutoStartIfExpiredInput {
+  groupId: number;
+}
+
+export type AutoStartIfExpiredResult =
+  | {
+      status: "started";
+      participantCount: number;
+      gifPack: CountdownGifPack;
+    }
+  | {
+      status: "no_expired_round";
+    };
+
 export interface GetCurrentRoundInput {
   groupId: number;
 }
@@ -158,4 +172,5 @@ export interface GameRepository {
   getCurrentRound(input: GetCurrentRoundInput): Promise<GetCurrentRoundResult>;
   getLeaderboard(input: LeaderboardInput): Promise<LeaderboardResult>;
   setStake(input: SetStakeInput): Promise<SetStakeResult>;
+  autoStartIfJoinWindowExpired?(input: AutoStartIfExpiredInput): Promise<AutoStartIfExpiredResult>;
 }
