@@ -27,7 +27,7 @@ async function mainMenu(ctx: Ctx): Promise<InlineKeyboardMarkup> {
   ];
 
   if (await canShowStartNow(ctx)) {
-    rows.push([inlineButton("Start Now", "start:round")]);
+    rows.push([inlineButton("Start Now", "start:round"), inlineButton("Start Immediately", "start:immediate")]);
   }
 
   rows.push(
