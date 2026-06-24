@@ -127,6 +127,12 @@ export type AutoStartIfExpiredResult =
       status: "no_expired_round";
     };
 
+export interface OpenRoundGroup {
+  groupId: number;
+  expiresAt: string;
+  gifPack: CountdownGifPack;
+}
+
 export interface GetCurrentRoundInput {
   groupId: number;
 }
@@ -173,4 +179,5 @@ export interface GameRepository {
   getLeaderboard(input: LeaderboardInput): Promise<LeaderboardResult>;
   setStake(input: SetStakeInput): Promise<SetStakeResult>;
   autoStartIfJoinWindowExpired?(input: AutoStartIfExpiredInput): Promise<AutoStartIfExpiredResult>;
+  getOpenRoundGroups?(): Promise<OpenRoundGroup[]>;
 }
